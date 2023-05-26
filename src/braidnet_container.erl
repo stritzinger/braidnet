@@ -48,12 +48,11 @@ handle_call(_, _, S) ->
 
 handle_cast({launch, DockerImage},
             #state{containers = Containers} = S) ->
-    Cmd = "docker run --rm -d " ++ DockerImage,
-    ContainerID = string:trim(os:cmd(Cmd)),
-    ShortID = list_to_binary(string:slice(ContainerID, 0, 12)),
-    ?LOG_NOTICE("Started container ~p",[ShortID]),
+    Cmd = "docker run --rm -d --network host " ++ DockerImage,
+    ContainerID = list_to_binary(string:trim(os:cmd(Cmd))),
+    ?LOG_NOTICE("Started container ~p",[ContainerID]),
     Container = #container{image = DockerImage, status = unknown},
-    {noreply, S#state{containers = Containers#{ShortID => Container}}};
+    {noreply, S#state{containers = Containers#{ContainerID => Container}}};
 handle_cast({event, ContainerID, Event}, #state{containers = CTNs} = S) ->
     NewS = case maps:is_key(ContainerID, CTNs) of
         true-> handle_event(ContainerID, Event, S);
