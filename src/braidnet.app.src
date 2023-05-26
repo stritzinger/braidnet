@@ -8,7 +8,9 @@
     stdlib,
     cowboy
    ]},
-  {env,[]},
+  {env,[
+    {hostname, "localhost"}
+  ]},
   {modules, []},
 
   {licenses, ["Apache-2.0"]},

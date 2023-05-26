@@ -11,9 +11,15 @@
 
 
 start(_StartType, _StartArgs) ->
+    {ok, HostName} = application:get_env(hostname),
     Dispatch = cowboy_router:compile([
-        {'_', [
-            {"/braidnode", braidnet_braidnode_api, []}
+        {"localhost", [
+            {"/braidnode", braidnet_braidnode_api, []},
+            % only for development:
+            {"/api/[:method]", braidnet_braid_rest_api, []}
+        ]},
+        {HostName,[
+            {"/api/[:method]", braidnet_braid_rest_api, []}
         ]}
     ]),
 

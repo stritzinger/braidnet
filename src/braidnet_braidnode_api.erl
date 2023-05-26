@@ -22,7 +22,7 @@ init(Req, State) ->
                 ok ->
                     {cowboy_websocket, Req, State};
                 {error, E} ->
-                    ?LOG_ERROR("Container ~p failed with error: ~p",[ID, E]),
+                    ?LOG_ERROR("Container ~p failed connecting: ~p",[ID, E]),
                     Req1 = cowboy_req:reply(401, Req),
                     {ok, Req1, State}
             end

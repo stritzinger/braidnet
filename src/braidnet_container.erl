@@ -7,13 +7,24 @@
          handle_cast/2,
          handle_info/2]).
 
+% External API
 -export([start_link/0,
-         launch/1,
-         connect/1,
+         launch/2,
+         list/0]).
+
+% Internal API
+-export([connect/1,
          event/2]).
 
 -include_lib("kernel/include/logger.hrl").
--include("braidnet_internal.hrl").
+
+-type container_id() :: binary().
+
+-record(container, {
+    name                :: binary(),
+    image               :: binary(),
+    status = unknown    :: unknown | running | lost
+}).
 
 -record(state, {
     containers  = #{} :: #{container_id() => #container{}}
@@ -22,8 +33,11 @@
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
-launch(DockerImage) ->
-    gen_server:cast(?MODULE, {?FUNCTION_NAME, DockerImage}).
+launch(Name, DockerImage) ->
+    gen_server:cast(?MODULE, {?FUNCTION_NAME, Name, DockerImage}).
+
+list() ->
+    gen_server:call(?MODULE, ?FUNCTION_NAME).
 
 connect(ContainerID) ->
     gen_server:call(?MODULE, {?FUNCTION_NAME, ContainerID}).
@@ -37,21 +51,34 @@ init([]) ->
     {ok, #state{}}.
 
 handle_call({connect, ContainerID}, _, #state{containers = CTNs} = S) ->
-    case maps:is_key(ContainerID, CTNs) of
-        true->
-            ?LOG_NOTICE("Container ~p connected to the braidnet.", [ContainerID]),
+    case CTNs of
+        #{ContainerID := #container{name = N}} ->
+            ?LOG_NOTICE("Container ~p connected to the braidnet.", [N]),
             {reply, ok, update_container_status(ContainerID, running, S)};
-        false -> {reply, {error, unexpected_id}, S}
+        _ -> {reply, {error, unexpected_id}, S}
     end;
+handle_call(list, _, #state{containers = Containers} = S) ->
+    List =
+    [#{id => ID,
+       name => Name,
+       image => Image,
+       status => Status} ||
+        {ID, #container{name = Name, image = Image, status = Status}}
+            <- maps:to_list(Containers)],
+    {reply, List, S};
 handle_call(_, _, S) ->
     {reply, ok, S}.
 
-handle_cast({launch, DockerImage},
+handle_cast({launch, Name, DockerImage},
             #state{containers = Containers} = S) ->
-    Cmd = "docker run --rm -d --network host " ++ DockerImage,
+    Cmd = binary_to_list(iolist_to_binary([
+        "docker run --rm -d "
+        "--network host "
+        "--name ", Name, " ",
+        DockerImage])),
     ContainerID = list_to_binary(string:trim(os:cmd(Cmd))),
-    ?LOG_NOTICE("Started container ~p",[ContainerID]),
-    Container = #container{image = DockerImage, status = unknown},
+    ?LOG_NOTICE("Started container ~p",[Name]),
+    Container = #container{name = Name, image = DockerImage, status = unknown},
     {noreply, S#state{containers = Containers#{ContainerID => Container}}};
 handle_cast({event, ContainerID, Event}, #state{containers = CTNs} = S) ->
     NewS = case maps:is_key(ContainerID, CTNs) of
