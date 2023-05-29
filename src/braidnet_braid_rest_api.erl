@@ -23,9 +23,9 @@ allowed_methods(Req, State) ->
 
 resource_exists(#{path := Path} = Req, _State) ->
     Method = filename:basename(Path),
-    case lists:member(Method, available_methods()) of
-        true -> {true, Req, Method};
-        false -> {false, Req, Method}
+    case Method of
+        <<"list">> -> {true, Req, Method};
+        _ -> {false, Req, Method}
     end.
 
 content_types_provided(Req, State) ->
@@ -35,7 +35,7 @@ content_types_accepted(Req, State) ->
 	{[{<<"application/json">>, from_json}], Req, State}.
 
 to_json(Req, <<"list">> = S) ->
-    Result = braidnet:list(),io:format("ok"),
+    Result = braidnet:list(),
 	{json_encode(Result), Req, S}.
 
 from_json(Req, <<"launch">> = S) ->
@@ -44,11 +44,6 @@ from_json(Req, <<"launch">> = S) ->
     Result = braidnet:launch_configuration(LaunchConfig),
     Req2 = cowboy_req:set_resp_body(json_encode(Result), Req1),
 	{true, Req2, S}.
-
-available_methods() ->
-    [
-       <<"list">>
-    ].
 
 json_decode(Msg) -> jsx:decode(Msg, [{return_maps, true}, {labels, binary}]).
 

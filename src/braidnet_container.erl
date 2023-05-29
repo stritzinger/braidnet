@@ -76,6 +76,7 @@ handle_cast({launch, Name, DockerImage},
         "--network host "
         "--name ", Name, " ",
         DockerImage])),
+    ?LOG_DEBUG("CMD: ~p",[Cmd]),
     ContainerID = list_to_binary(string:trim(os:cmd(Cmd))),
     ?LOG_NOTICE("Started container ~p",[Name]),
     Container = #container{name = Name, image = DockerImage, status = unknown},
