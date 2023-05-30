@@ -9,7 +9,6 @@
     cowboy
    ]},
   {env,[
-    {hostname, "localhost"}
   ]},
   {modules, []},
 

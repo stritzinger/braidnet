@@ -11,14 +11,11 @@
 
 
 start(_StartType, _StartArgs) ->
-    % {ok, HostName} = application:get_env(hostname),
-    Dispatch = cowboy_router:compile([
-        { '_',  [
-            {"/braidnode", braidnet_braidnode_api, []},
-            {"/api/[:method]", braidnet_braid_rest_api, []}
-        ]}
-    ]),
-
+    Routes = case application:get_env(hostname) of
+        {ok, Hostname} -> routes(Hostname);
+        undefined -> routes(local)
+    end,
+    Dispatch = cowboy_router:compile(Routes),
     {ok, _} = cowboy:start_clear(example, [{port, 8080}], #{
         env => #{dispatch => Dispatch}
     }),
@@ -26,5 +23,21 @@ start(_StartType, _StartArgs) ->
 
 stop(_State) -> kraft:stop().
 
-
 %% internal functions
+
+routes(local) ->
+    [
+        {'_', [
+            {"/braidnode", braidnet_braidnode_api, []},
+            {"/api/[:method]", braidnet_braid_rest_api, []}
+        ]}
+    ];
+routes(Hostname) ->
+    [
+        {"localhost", [
+            {"/braidnode", braidnet_braidnode_api, []}
+        ]},
+        {Hostname, [
+            {"/api/[:method]", braidnet_braid_rest_api, []}
+        ]}
+    ].
