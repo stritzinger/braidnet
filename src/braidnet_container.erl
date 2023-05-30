@@ -34,8 +34,8 @@
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
-launch(Name, DockerImage) ->
-    gen_server:cast(?MODULE, {?FUNCTION_NAME, Name, DockerImage}).
+launch(Name, Opts) ->
+    gen_server:cast(?MODULE, {?FUNCTION_NAME, Name, Opts}).
 
 list() ->
     gen_server:call(?MODULE, ?FUNCTION_NAME).
@@ -61,6 +61,7 @@ handle_call({connect, ContainerID}, _, #state{containers = CTNs} = S) ->
             {reply, ok, update_container_status(ContainerID, running, S)};
         _ -> {reply, {error, unexpected_id}, S}
     end;
+
 handle_call(list, _, #state{containers = Containers} = S) ->
     List =
     [#{id => ID,
@@ -70,6 +71,7 @@ handle_call(list, _, #state{containers = Containers} = S) ->
         {ID, #container{name = Name, image = Image, status = Status}}
             <- maps:to_list(Containers)],
     {reply, List, S};
+
 handle_call({delete, ContainerName}, _, #state{containers = CTNs} = S) ->
     Partition = lists:partition(
         fun ({_ ,#container{name = Name}}) when Name == ContainerName -> true;
@@ -85,29 +87,39 @@ handle_call({delete, ContainerName}, _, #state{containers = CTNs} = S) ->
             Rest
     end,
     {reply, ok, S#state{containers = maps:from_list(Remaining)}};
+
 handle_call(_, _, S) ->
     {reply, ok, S}.
 
-handle_cast({launch, Name, DockerImage},
+handle_cast({launch, Name, #{<<"image">> := DockerImage, <<"epmd_port">> := Port}},
             #state{containers = Containers} = S) ->
-    Cmd = binary_to_list(iolist_to_binary([
-        "docker run --rm -d "
-        "--network host "
-        "--name ", Name, " ",
-        DockerImage])),
+    CID = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
+    Cmd = string:join([
+        "docker run -d",
+        "--env CID=" ++ binary_to_list(CID),
+        "--env NODE_NAME=" ++ binary_to_list(Name),
+        "--env BRD_EPMD_PORT=" ++ binary_to_list(Port),
+        "--network host",
+        binary_to_list(DockerImage)
+    ], " "),
     ?LOG_DEBUG("CMD: ~p",[Cmd]),
-    ContainerID = list_to_binary(string:trim(os:cmd(Cmd))),
+
+    CmdResult = string:trim(os:cmd(Cmd)),
+    ?LOG_DEBUG("CMD result: ~p",[CmdResult]),
     ?LOG_NOTICE("Started container ~p",[Name]),
+
     Container = #container{name = Name, image = DockerImage, status = unknown},
-    {noreply, S#state{containers = Containers#{ContainerID => Container}}};
+    {noreply, S#state{containers = Containers#{CID => Container}}};
+
 handle_cast({event, ContainerID, Event}, #state{containers = CTNs} = S) ->
     NewS = case maps:is_key(ContainerID, CTNs) of
-        true-> handle_event(ContainerID, Event, S);
+        true -> handle_event(ContainerID, Event, S);
         false ->
             ?LOG_ERROR("Event from unexpected container ~p", [ContainerID]),
             S
     end,
     {noreply, NewS};
+
 handle_cast(_, S) ->
     {noreply, S}.
 
@@ -115,13 +127,11 @@ handle_info(Msg, S) ->
     ?LOG_ERROR("Unexpected msg: ~p",[Msg]),
     {noreply, S}.
 
-
 update_container_status(ContainerID, NewStatus, #state{containers = CTNs} = S) ->
     #{ContainerID := CTN} = CTNs,
     Container = CTN#container{status = NewStatus},
     NewMap = maps:put(ContainerID, Container, CTNs),
     S#state{containers = NewMap}.
-
 
 handle_event(ContainerID, disconnected, #state{containers = CTNs} = S) ->
     ?LOG_NOTICE("Container ~p lost connection", [ContainerID]),
@@ -129,4 +139,3 @@ handle_event(ContainerID, disconnected, #state{containers = CTNs} = S) ->
     Container = CTN#container{status = lost},
     NewMap = maps:put(ContainerID, Container, CTNs),
     S#state{containers = NewMap}.
-
