@@ -15,6 +15,8 @@
 
 % Internal API
 -export([connect/1,
+         disconnect/1,
+         log/2,
          event/2]).
 
 -include_lib("kernel/include/logger.hrl").
@@ -45,6 +47,12 @@ delete(ContainerName) ->
 
 connect(ContainerID) ->
     gen_server:call(?MODULE, {?FUNCTION_NAME, ContainerID}).
+
+disconnect(ContainerID) ->
+    gen_server:cast(?MODULE, {?FUNCTION_NAME, ContainerID}).
+
+log(ContainerID, Text) ->
+    gen_server:cast(?MODULE, {?FUNCTION_NAME, ContainerID, Text}).
 
 event(ContainerID, Event) ->
     gen_server:cast(?MODULE, {?FUNCTION_NAME, ContainerID, Event}).
@@ -115,6 +123,20 @@ handle_cast({launch, Name, Opts}, #state{containers = Containers} = S) ->
     Container = #container{name = Name, image = DockerImage, status = unknown},
     {noreply, S#state{containers = Containers#{CID => Container}}};
 
+handle_cast({log, ContainerID, Text}, #state{containers = _CTNs} = S) ->
+    % TODO: store logs to query them later
+    ?LOG_DEBUG("[~p]: ~s",[ContainerID, Text]),
+    {noreply, S};
+
+handle_cast({disconnect, ContainerID}, #state{containers = CTNs} = S) ->
+    case CTNs of
+        #{ContainerID := #container{name = N}} ->
+            ?LOG_NOTICE("Container ~p lost connection.", [N]),
+            {noreply, update_container_status(ContainerID, lost, S)};
+        _ ->
+            {noreply, S}
+    end;
+
 handle_cast({event, ContainerID, Event}, #state{containers = CTNs} = S) ->
     NewS = case maps:is_key(ContainerID, CTNs) of
         true -> handle_event(ContainerID, Event, S);
@@ -124,7 +146,8 @@ handle_cast({event, ContainerID, Event}, #state{containers = CTNs} = S) ->
     end,
     {noreply, NewS};
 
-handle_cast(_, S) ->
+handle_cast(Msg, S) ->
+    ?LOG_ERROR("Unexpected cast ~p", [Msg]),
     {noreply, S}.
 
 handle_info(Msg, S) ->
