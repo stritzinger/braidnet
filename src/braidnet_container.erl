@@ -91,24 +91,27 @@ handle_call({delete, ContainerName}, _, #state{containers = CTNs} = S) ->
 handle_call(_, _, S) ->
     {reply, ok, S}.
 
-handle_cast({launch, Name, #{<<"image">> := DockerImage, <<"epmd_port">> := Port}},
-            #state{containers = Containers} = S) ->
-    [_, ThisHost] = binary:split(erlang:atom_to_binary(node()), <<"@">>),
+handle_cast({launch, Name, Opts}, #state{containers = Containers} = S) ->
+    store_connections(Name, Opts),
+    % --
+    ThisHost = erlang:list_to_binary(net_adm:localhost()),
+    NodeName = binary_to_list(<<Name/binary, "@", ThisHost/binary>>),
     CID = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
+    DockerImage = maps:get(<<"image">>, Opts),
     Cmd = string:join([
         "docker run -d",
         "--env CID=" ++ binary_to_list(CID),
-        "--env NODE_NAME=" ++ binary_to_list(<<Name/binary, "@", ThisHost/binary>>),
-        "--env BRD_EPMD_PORT=" ++ binary_to_list(Port),
+        "--env NODE_NAME=" ++ NodeName,
+        "--env BRD_EPMD_PORT=" ++ binary_to_list(maps:get(<<"epmd_port">>, Opts)),
         "--network host",
         binary_to_list(DockerImage)
     ], " "),
     ?LOG_DEBUG("CMD: ~p",[Cmd]),
-
+    % --
     CmdResult = string:trim(os:cmd(Cmd)),
     ?LOG_DEBUG("CMD result: ~p",[CmdResult]),
     ?LOG_NOTICE("Started container ~p",[Name]),
-
+    % --
     Container = #container{name = Name, image = DockerImage, status = unknown},
     {noreply, S#state{containers = Containers#{CID => Container}}};
 
@@ -140,3 +143,6 @@ handle_event(ContainerID, disconnected, #state{containers = CTNs} = S) ->
     Container = CTN#container{status = lost},
     NewMap = maps:put(ContainerID, Container, CTNs),
     S#state{containers = NewMap}.
+
+store_connections(Node, #{<<"connections">> := Connections}) ->
+    braidnet_epmd_server:store_connections(Node, Connections).
