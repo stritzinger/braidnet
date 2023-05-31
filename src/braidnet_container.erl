@@ -93,11 +93,12 @@ handle_call(_, _, S) ->
 
 handle_cast({launch, Name, #{<<"image">> := DockerImage, <<"epmd_port">> := Port}},
             #state{containers = Containers} = S) ->
+    [_, ThisHost] = binary:split(erlang:atom_to_binary(node()), <<"@">>),
     CID = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
     Cmd = string:join([
         "docker run -d",
         "--env CID=" ++ binary_to_list(CID),
-        "--env NODE_NAME=" ++ binary_to_list(Name),
+        "--env NODE_NAME=" ++ binary_to_list(<<Name/binary, "@", ThisHost/binary>>),
         "--env BRD_EPMD_PORT=" ++ binary_to_list(Port),
         "--network host",
         binary_to_list(DockerImage)
