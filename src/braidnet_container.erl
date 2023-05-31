@@ -101,16 +101,15 @@ handle_call(_, _, S) ->
 
 handle_cast({launch, Name, Opts}, #state{containers = Containers} = S) ->
     store_connections(Name, Opts),
-    % --
-    ThisHost = erlang:list_to_binary(net_adm:localhost()),
-    NodeName = binary_to_list(<<Name/binary, "@", ThisHost/binary>>),
+
     CID = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
     DockerImage = maps:get(<<"image">>, Opts),
     Cmd = string:join([
         "docker run -d",
         "--env CID=" ++ binary_to_list(CID),
-        "--env NODE_NAME=" ++ NodeName,
+        "--env NODE_NAME=" ++ binary_to_list(Name),
         "--env BRD_EPMD_PORT=" ++ binary_to_list(maps:get(<<"epmd_port">>, Opts)),
+        "--hostname " ++ net_adm:localhost(),
         "--network host",
         binary_to_list(DockerImage)
     ], " "),
