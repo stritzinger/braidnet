@@ -56,9 +56,7 @@ handle_jsonrpc(#{<<"method">> := Method, <<"id">> := Id, <<"params">> := Params}
     Response = case Method of
         <<"register_node">> -> braidnet_epmd_server:register_node(Params);
         <<"address_please">> -> braidnet_epmd_server:address_please(Params);
-        <<"port_please">> -> braidnet_epmd_server:port_please(Params);
-        <<"names">> -> braidnet_epmd_server:names(Params);
-        <<"connections">> -> braidnet_epmd_server:connections(Params)
+        <<"names">> -> braidnet_epmd_server:names(Params)
     end,
     jsonrpc_response_object(Id, Response).
 
