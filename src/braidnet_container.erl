@@ -21,14 +21,16 @@ start_link(Name, CID, Opts) ->
 
 init([Name, CID, #{<<"image">> := DockerImage, <<"epmd_port">> := Port}]) ->
     Docker = os:find_executable("docker"),
+    NodeHost = braidnet_cluster:this_nodehost(),
     PortSettings = [
         {args, [
             "run",
             "--rm",
             "--env", "CID=" ++ binary_to_list(CID),
             "--env", "NODE_NAME=" ++ binary_to_list(Name),
+            "--env NODE_HOST=" ++ binary_to_list(NodeHost),
             "--env", "BRD_EPMD_PORT=" ++ binary_to_list(Port),
-            "--hostname", net_adm:localhost() ++ ".braidnet",
+            "--hostname", binary_to_list(NodeHost),
             "--network", "host",
             binary_to_list(DockerImage)
         ]},
