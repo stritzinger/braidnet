@@ -124,6 +124,20 @@ handle_cast({disconnect, ContainerID}, #state{containers = CTNs} = S) ->
             {noreply, S}
     end;
 
+handle_cast({log, ContainerID, Text}, #state{containers = _CTNs} = S) ->
+    % TODO: store logs to query them later
+    ?LOG_DEBUG("[~p]: ~s",[ContainerID, Text]),
+    {noreply, S};
+
+handle_cast({disconnect, ContainerID}, #state{containers = CTNs} = S) ->
+    case CTNs of
+        #{ContainerID := #container{name = N}} ->
+            ?LOG_NOTICE("Container ~p lost connection.", [N]),
+            {noreply, update_container_status(ContainerID, lost, S)};
+        _ ->
+            {noreply, S}
+    end;
+
 handle_cast({event, ContainerID, Event}, #state{containers = CTNs} = S) ->
     NewS = case maps:is_key(ContainerID, CTNs) of
         true -> handle_event(ContainerID, Event, S);
