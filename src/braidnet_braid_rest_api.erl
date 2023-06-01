@@ -4,6 +4,7 @@
 % API
 -export([init/2]).
 -export([allowed_methods/2]).
+-export([is_authorized/2]).
 -export([content_types_provided/2]).
 -export([content_types_accepted/2]).
 -export([resource_exists/2]).
@@ -21,6 +22,15 @@ init(Req, Opts) ->
 allowed_methods(Req, State) ->
     Methods = [<<"GET">>, <<"POST">>, <<"DELETE">>],
     {Methods, Req, State}.
+
+is_authorized(Req, State) ->
+    SecretToken = application:get_env(braidnet, rest_api_token, undefined),
+    try cowboy_req:parse_header(<<"authorization">>, Req) of
+        {bearer, SecretToken} -> {true, Req, State};
+        _ -> {{false, <<"Bearer">>}, Req, State}
+    catch _:_ ->
+        {{false, <<"Bearer">>}, Req, State}
+    end.
 
 resource_exists(#{path := Path} = Req, _State) ->
     Method = filename:basename(Path),
