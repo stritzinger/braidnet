@@ -11,6 +11,8 @@
 -export([pause/1]).
 -export([unpause/1]).
 
+-include_lib("kernel/include/logger.hrl").
+
 % dev api ----------------------------------------------------------------------
 test_node() ->
     Localhost = erlang:list_to_binary(net_adm:localhost()),
@@ -45,8 +47,7 @@ test_nodes() ->
     launch_configuration(#{Localhost => NodeMap}).
 
 launch_configuration(NodesMap) ->
-    %ThisNode = atom_to_binary(node()),
-    ThisHost = erlang:list_to_binary(net_adm:localhost()),
+    {ok, ThisHost} = application:get_env(braidnet, hostname),
     LaunchHere = maps:get(ThisHost, NodesMap, #{}),
     maps:foreach(fun braidnet_container:launch/2, LaunchHere).
 
@@ -58,10 +59,13 @@ remove_configuration(NodesMap) ->
     case NodesMap of
         #{ThisNode := HostedNodes} ->
             [braidnet_container:delete(Container) ||
-                {Container, _} <- maps:to_list(HostedNodes)];
-        _ -> skip
-    end,
-    ok.
+                {Container, _} <- maps:to_list(HostedNodes)],
+                ok;
+        _ ->
+            ?LOG_WARNING("Received a braid configuration"
+                         " that does not lists this orchestrator."),
+            skip
+    end.
 
 pause(Containers) ->
     ok.

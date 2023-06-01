@@ -6,7 +6,9 @@
   {applications,
    [kernel,
     stdlib,
-    cowboy
+    cowboy,
+    jiffy,
+    uuid
    ]},
   {env,[
   ]},
