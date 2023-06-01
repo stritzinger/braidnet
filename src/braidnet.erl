@@ -2,7 +2,8 @@
 
 -export([
     test_node/0,
-    test_nodes/0
+    test_nodes/0,
+    test_node_fly/1
 ]).
 
 -export([launch_configuration/1]).
@@ -16,7 +17,7 @@
 
 % dev api ----------------------------------------------------------------------
 test_node() ->
-    Localhost = erlang:list_to_binary(net_adm:localhost()),
+    ThisHost = braidnet_cluster:this_nodehost(),
     NodeMap = #{
         <<"dummy_container">> => #{
             <<"image">> => <<"local/braidnode">>,
@@ -24,20 +25,20 @@ test_node() ->
             <<"connections" >> => []
         }
     },
-    launch_configuration(#{Localhost => NodeMap}).
+    launch_configuration(#{ThisHost => NodeMap}).
 
 test_nodes() ->
-    Localhost = erlang:list_to_binary(net_adm:localhost()),
+    ThisHost = braidnet_cluster:this_nodehost(),
     NodeMap = #{
         <<"n1">> => #{
             <<"image">> => <<"local/braidnode">>,
             <<"epmd_port">> => <<"43591">>,
-            <<"connections">> => [<<"n2@", Localhost/binary, ".braidnet">>]
+            <<"connections">> => [<<"n2@", ThisHost/binary, ".braidnet">>]
         },
         <<"n2">> => #{
             <<"image">> => <<"local/braidnode">>,
             <<"epmd_port">> => <<"43592">>,
-            <<"connections">> => [<<"n1@", Localhost/binary, ".braidnet">>]
+            <<"connections">> => [<<"n1@", ThisHost/binary, ".braidnet">>]
         },
         <<"dummy_container">> => #{
             <<"image">> => <<"local/braidnode">>,
@@ -46,6 +47,17 @@ test_nodes() ->
         }
     },
     launch_configuration(#{Localhost => NodeMap}).
+
+test_node_fly(RemoteMachine) ->
+    ThisHost = braidnet_cluster:this_nodehost(),
+    NodeMap = #{
+        <<"braidnode">> => #{
+            <<"image">> => <<"ntshtng/braidnode">>,
+            <<"epmd_port">> => <<"43591">>,
+            <<"connections" >> => [<<"braidnode@", RemoteMachine/binary>>]
+        }
+    },
+    launch_configuration(#{ThisHost => NodeMap}).
 
 launch_configuration(NodesMap) ->
     ThisHost = get_hostname(),
@@ -75,5 +87,5 @@ unpause(Containers) ->
 get_hostname() ->
     case application:get_env(braidnet, hostname) of
         {ok, HostnameOverride} -> list_to_binary(HostnameOverride);
-        undefined -> list_to_binary(net_adm:localhost())
+        undefined -> braidnet_cluster:this_nodehost(),
     end.
