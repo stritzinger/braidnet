@@ -50,7 +50,7 @@ start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 init(_) ->
-    ThisHost = erlang:list_to_binary(net_adm:localhost()),
+    ThisHost = erlang:list_to_binary(net_adm:localhost() ++ ".braidnet"),
     Nodes = #{ThisHost => #{}},
     {ok, #state{hostname = ThisHost, nodes = Nodes}}.
 

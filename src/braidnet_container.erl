@@ -15,6 +15,8 @@
 
 % Internal API
 -export([connect/1,
+         disconnect/1,
+         log/2,
          event/2]).
 
 -include_lib("kernel/include/logger.hrl").
@@ -45,6 +47,12 @@ delete(ContainerName) ->
 
 connect(ContainerID) ->
     gen_server:call(?MODULE, {?FUNCTION_NAME, ContainerID}).
+
+disconnect(ContainerID) ->
+    gen_server:cast(?MODULE, {?FUNCTION_NAME, ContainerID}).
+
+log(ContainerID, Text) ->
+    gen_server:cast(?MODULE, {?FUNCTION_NAME, ContainerID, Text}).
 
 event(ContainerID, Event) ->
     gen_server:cast(?MODULE, {?FUNCTION_NAME, ContainerID, Event}).
@@ -93,27 +101,28 @@ handle_call(_, _, S) ->
 
 handle_cast({launch, Name, Opts}, #state{containers = Containers} = S) ->
     store_connections(Name, Opts),
-    % --
-    ThisHost = erlang:list_to_binary(net_adm:localhost()),
-    NodeName = binary_to_list(<<Name/binary, "@", ThisHost/binary>>),
-    CID = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
-    DockerImage = maps:get(<<"image">>, Opts),
-    Cmd = string:join([
-        "docker run -d",
-        "--env CID=" ++ binary_to_list(CID),
-        "--env NODE_NAME=" ++ NodeName,
-        "--env BRD_EPMD_PORT=" ++ binary_to_list(maps:get(<<"epmd_port">>, Opts)),
-        "--network host",
-        binary_to_list(DockerImage)
-    ], " "),
-    ?LOG_DEBUG("CMD: ~p",[Cmd]),
-    % --
-    CmdResult = string:trim(os:cmd(Cmd)),
-    ?LOG_DEBUG("CMD result: ~p",[CmdResult]),
+    ContainerID = exec_docker_run(Name, Opts),
+    Container = #container{
+        name = Name,
+        image = maps:get(<<"image">>, Opts),
+        status = unknown
+    },
     ?LOG_NOTICE("Started container ~p",[Name]),
-    % --
-    Container = #container{name = Name, image = DockerImage, status = unknown},
-    {noreply, S#state{containers = Containers#{CID => Container}}};
+    {noreply, S#state{containers = Containers#{ContainerID => Container}}};
+
+handle_cast({log, ContainerID, Text}, #state{containers = _CTNs} = S) ->
+    % TODO: store logs to query them later
+    ?LOG_DEBUG("[~p]: ~s", [ContainerID, Text]),
+    {noreply, S};
+
+handle_cast({disconnect, ContainerID}, #state{containers = CTNs} = S) ->
+    case CTNs of
+        #{ContainerID := #container{name = N}} ->
+            ?LOG_NOTICE("Container ~p lost connection.", [N]),
+            {noreply, update_container_status(ContainerID, lost, S)};
+        _ ->
+            {noreply, S}
+    end;
 
 handle_cast({event, ContainerID, Event}, #state{containers = CTNs} = S) ->
     NewS = case maps:is_key(ContainerID, CTNs) of
@@ -124,7 +133,8 @@ handle_cast({event, ContainerID, Event}, #state{containers = CTNs} = S) ->
     end,
     {noreply, NewS};
 
-handle_cast(_, S) ->
+handle_cast(Msg, S) ->
+    ?LOG_ERROR("Unexpected cast ~p", [Msg]),
     {noreply, S}.
 
 handle_info(Msg, S) ->
@@ -146,3 +156,19 @@ handle_event(ContainerID, disconnected, #state{containers = CTNs} = S) ->
 
 store_connections(Node, #{<<"connections">> := Connections}) ->
     braidnet_epmd_server:store_connections(Node, Connections).
+
+exec_docker_run(Name, #{<<"image">> := DockerImage, <<"epmd_port">> := Port}) ->
+    ContainerId = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
+    RunCommandParts = [
+        "docker run -d",
+        "--env CID=" ++ binary_to_list(ContainerId),
+        "--env NODE_NAME=" ++ binary_to_list(Name),
+        "--env BRD_EPMD_PORT=" ++ binary_to_list(Port),
+        "--hostname " ++ net_adm:localhost() ++ ".braidnet",
+        "--network host",
+        binary_to_list(DockerImage)
+    ],
+    RunCommand = string:join(RunCommandParts, " "),
+    Result = string:trim(os:cmd(RunCommand)),
+    ?LOG_DEBUG("Executed ~p~nResult: ~p", [RunCommand, Result]),
+    ContainerId.
