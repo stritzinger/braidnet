@@ -29,7 +29,10 @@ init([]) ->
     SupFlags = #{strategy => one_for_all,
                  intensity => 0,
                  period => 1},
-    ChildSpecs = [worker(braidnet_container, [])],
+    ChildSpecs = [
+        worker(braidnet_epmd_server, []),
+        worker(braidnet_container, [])
+    ],
     {ok, {SupFlags, ChildSpecs}}.
 
 %% internal functions

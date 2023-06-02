@@ -4,6 +4,7 @@
 % API
 -export([init/2]).
 -export([allowed_methods/2]).
+-export([is_authorized/2]).
 -export([content_types_provided/2]).
 -export([content_types_accepted/2]).
 -export([resource_exists/2]).
@@ -16,11 +17,20 @@
 
 %--- API -----------------------------------------------------------------------
 init(Req, Opts) ->
-	{cowboy_rest, Req, Opts}.
+    {cowboy_rest, Req, Opts}.
 
 allowed_methods(Req, State) ->
     Methods = [<<"GET">>, <<"POST">>, <<"DELETE">>],
     {Methods, Req, State}.
+
+is_authorized(Req, State) ->
+    SecretToken = application:get_env(braidnet, rest_api_token, undefined),
+    try cowboy_req:parse_header(<<"authorization">>, Req) of
+        {bearer, SecretToken} -> {true, Req, State};
+        _ -> {{false, <<"Bearer">>}, Req, State}
+    catch _:_ ->
+        {{false, <<"Bearer">>}, Req, State}
+    end.
 
 resource_exists(#{path := Path} = Req, _State) ->
     Method = filename:basename(Path),
@@ -31,10 +41,10 @@ resource_exists(#{path := Path} = Req, _State) ->
     end.
 
 content_types_provided(Req, State) ->
-	{[{<<"application/json">>, to_json}], Req, State}.
+    {[{<<"application/json">>, to_json}], Req, State}.
 
 content_types_accepted(Req, State) ->
-	{[{<<"application/json">>, from_json}], Req, State}.
+    {[{<<"application/json">>, from_json}], Req, State}.
 
 delete_resource(Req, <<"destroy">> = S) ->
     {ok, Body, Req1} = cowboy_req:read_body(Req),
@@ -47,15 +57,15 @@ delete_resource(Req, <<"destroy">> = S) ->
 
 to_json(Req, <<"list">> = S) ->
     Result = braidnet:list(),
-	{json_encode(Result), Req, S}.
+    {json_encode(Result), Req, S}.
 
 from_json(Req, <<"launch">> = S) ->
-	{ok, Body, Req1} = cowboy_req:read_body(Req),
+    {ok, Body, Req1} = cowboy_req:read_body(Req),
     LaunchConfig = json_decode(Body),
     Result = braidnet:launch_configuration(LaunchConfig),
     Req2 = cowboy_req:set_resp_body(json_encode(Result), Req1),
-	{true, Req2, S}.
+    {true, Req2, S}.
 
-json_decode(Msg) -> jsx:decode(Msg, [{return_maps, true}, {labels, binary}]).
+json_decode(Msg) -> jiffy:decode(Msg, [return_maps]).
 
-json_encode(Msg) -> jsx:encode(Msg).
+json_encode(Msg) -> jiffy:encode(Msg).

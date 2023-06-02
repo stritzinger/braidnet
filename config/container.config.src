@@ -1,9 +1,10 @@
 [
     {braidnet, [
+      {rest_api_token, ${AUTH_TOKEN}}
       {hostname, "braidnet.fly.dev"}
     ]},
     {kernel,[
-        {logger_level, debug},
+        {logger_level, ${LOG_LEVEL}},
         {logger, [
           {handler, default, logger_std_h, #{
             formatter => {logger_formatter, #{
