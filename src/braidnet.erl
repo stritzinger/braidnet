@@ -29,12 +29,12 @@ test_nodes() ->
         <<"n1">> => #{
             <<"image">> => <<"local/braidnode">>,
             <<"epmd_port">> => <<"43591">>,
-            <<"connections">> => [<<"n2@", Localhost/binary>>]
+            <<"connections">> => [<<"n2@", Localhost/binary, ".braidnet">>]
         },
         <<"n2">> => #{
             <<"image">> => <<"local/braidnode">>,
             <<"epmd_port">> => <<"43592">>,
-            <<"connections">> => [<<"n1@", Localhost/binary>>]
+            <<"connections">> => [<<"n1@", Localhost/binary, ".braidnet">>]
         },
         <<"dummy_container">> => #{
             <<"image">> => <<"local/braidnode">>,

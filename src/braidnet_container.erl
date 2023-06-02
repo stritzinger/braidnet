@@ -101,30 +101,18 @@ handle_call(_, _, S) ->
 
 handle_cast({launch, Name, Opts}, #state{containers = Containers} = S) ->
     store_connections(Name, Opts),
-
-    CID = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
-    DockerImage = maps:get(<<"image">>, Opts),
-    Cmd = string:join([
-        "docker run -d",
-        "--env CID=" ++ binary_to_list(CID),
-        "--env NODE_NAME=" ++ binary_to_list(Name),
-        "--env BRD_EPMD_PORT=" ++ binary_to_list(maps:get(<<"epmd_port">>, Opts)),
-        "--hostname " ++ net_adm:localhost(),
-        "--network host",
-        binary_to_list(DockerImage)
-    ], " "),
-    ?LOG_DEBUG("CMD: ~p",[Cmd]),
-    % --
-    CmdResult = string:trim(os:cmd(Cmd)),
-    ?LOG_DEBUG("CMD result: ~p",[CmdResult]),
+    ContainerID = exec_docker_run(Name, Opts),
+    Container = #container{
+        name = Name,
+        image = maps:get(<<"image">>, Opts),
+        status = unknown
+    },
     ?LOG_NOTICE("Started container ~p",[Name]),
-    % --
-    Container = #container{name = Name, image = DockerImage, status = unknown},
-    {noreply, S#state{containers = Containers#{CID => Container}}};
+    {noreply, S#state{containers = Containers#{ContainerID => Container}}};
 
 handle_cast({log, ContainerID, Text}, #state{containers = _CTNs} = S) ->
     % TODO: store logs to query them later
-    ?LOG_DEBUG("[~p]: ~s",[ContainerID, Text]),
+    ?LOG_DEBUG("[~p]: ~s", [ContainerID, Text]),
     {noreply, S};
 
 handle_cast({disconnect, ContainerID}, #state{containers = CTNs} = S) ->
@@ -168,3 +156,19 @@ handle_event(ContainerID, disconnected, #state{containers = CTNs} = S) ->
 
 store_connections(Node, #{<<"connections">> := Connections}) ->
     braidnet_epmd_server:store_connections(Node, Connections).
+
+exec_docker_run(Name, #{<<"image">> := DockerImage, <<"epmd_port">> := Port}) ->
+    ContainerId = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
+    RunCommandParts = [
+        "docker run -d",
+        "--env CID=" ++ binary_to_list(ContainerId),
+        "--env NODE_NAME=" ++ binary_to_list(Name),
+        "--env BRD_EPMD_PORT=" ++ binary_to_list(Port),
+        "--hostname " ++ net_adm:localhost() ++ ".braidnet",
+        "--network host",
+        binary_to_list(DockerImage)
+    ],
+    RunCommand = string:join(RunCommandParts, " "),
+    Result = string:trim(os:cmd(RunCommand)),
+    ?LOG_DEBUG("Executed ~p~nResult: ~p", [RunCommand, Result]),
+    ContainerId.
