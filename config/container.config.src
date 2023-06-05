@@ -1,7 +1,6 @@
 [
     {braidnet, [
-      {rest_api_token, <<"${AUTH_TOKEN}">>},
-      {hostname, <<"${ORIGIN}">>}
+      {rest_api_token, <<"${AUTH_TOKEN}">>}
     ]},
     {kernel,[
         {logger_level, ${LOG_LEVEL:-notice}},

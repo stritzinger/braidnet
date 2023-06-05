@@ -47,7 +47,7 @@ test_nodes() ->
     launch_configuration(#{Localhost => NodeMap}).
 
 launch_configuration(NodesMap) ->
-    {ok, ThisHost} = application:get_env(braidnet, hostname),
+    ThisHost = list_to_binary(net_adm:localhost()),
     LaunchHere = maps:get(ThisHost, NodesMap, #{}),
     maps:foreach(fun braidnet_container:launch/2, LaunchHere).
 
@@ -55,7 +55,7 @@ list() ->
     braidnet_container:list().
 
 remove_configuration(NodesMap) ->
-    {ok, ThisHost} = application:get_env(braidnet, hostname),
+    ThisHost = list_to_binary(net_adm:localhost()),
     ToBeDestroyed = maps:get(ThisHost, NodesMap, #{}),
     Names = [Name || {Name, _} <- maps:to_list(ToBeDestroyed)],
     lists:foreach(fun braidnet_container:delete/1, Names).
