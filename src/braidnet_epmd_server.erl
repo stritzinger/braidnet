@@ -59,6 +59,7 @@ handle_call({store_connections, Node, NodeConns}, _, State) ->
     Connections1 = maps:put(Node, NodeConns, Connections0),
     {reply, ok, State#state{connections = Connections1}};
 
+% Name: node name without @<host> part
 handle_call({register_node, Name, Port}, _, #state{nodes = NodeMap0} = State0) ->
     NodesHere0 = maps:get(State0#state.hostname, NodeMap0),
     NodesHere1 = NodesHere0#{Name => Port},
@@ -70,6 +71,8 @@ handle_call({register_node, Name, Port}, _, #state{nodes = NodeMap0} = State0) -
     ?LOG_NOTICE("Node ~p registered with Braidnet EPMD.", [Name]),
     {reply, [ok, Connections], State1};
 
+% Host: host part of node name
+% Name: node name without @<host> part
 handle_call({address_please, Host, Node}, _, State) ->
     case node_ip_and_port(Host, Node, State) of
         nxdomain -> {reply, [error, nxdomain], State};

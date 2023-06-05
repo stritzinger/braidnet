@@ -14,6 +14,18 @@ An OTP application to spawn containers and orchestrate comunication between them
 
     braidnet:test_nodes().
 
+## Deploy onto Fly.io
+    flyctl deploy
+
+## Erlang shell on Fly.io
+SSH to machine, for example:
+
+    flyctl ssh console -a braidnet-ams -A fdaa:0:e75d:a7b:141:1445:ab0b:2
+
+Start Erlang shell:
+
+    /opt/braidnet/bin/braidnet remote_console
+
 ## TODO:
 - Tests!
 - EPMD:

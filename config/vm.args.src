@@ -1,0 +1,3 @@
+-sname braidnet
+-setcookie cookie
+-proto_dist inet6_tcp
