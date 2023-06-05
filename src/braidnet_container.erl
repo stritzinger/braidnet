@@ -21,16 +21,18 @@
 
 -include_lib("kernel/include/logger.hrl").
 
--type container_id() :: binary().
+% custom ID to store container reference internally
+-type cid() :: binary().
 
 -record(container, {
-    name                :: binary(),
+    node_name           :: binary(),
+    container_id        :: binary(), % the true docker container ID
     image               :: binary(),
     status = unknown    :: unknown | running | lost | paused
 }).
 
 -record(state, {
-    containers  = #{} :: #{container_id() => #container{}}
+    containers  = #{} :: #{cid() => #container{}}
 }).
 
 start_link() ->
@@ -62,11 +64,11 @@ event(ContainerID, Event) ->
 init([]) ->
     {ok, #state{}}.
 
-handle_call({connect, ContainerID}, _, #state{containers = CTNs} = S) ->
+handle_call({connect, CID}, _, #state{containers = CTNs} = S) ->
     case CTNs of
-        #{ContainerID := #container{name = N}} ->
-            ?LOG_NOTICE("Container ~p connected to the braidnet.", [N]),
-            {reply, ok, update_container_status(ContainerID, running, S)};
+        #{CID := #container{node_name = N}} ->
+            ?LOG_NOTICE("Node ~p connected to the braidnet.", [N]),
+            {reply, ok, update_container_status(CID, running, S)};
         _ -> {reply, {error, unexpected_id}, S}
     end;
 
@@ -76,18 +78,18 @@ handle_call(list, _, #state{containers = Containers} = S) ->
        name => Name,
        image => Image,
        status => Status} ||
-        {ID, #container{name = Name, image = Image, status = Status}}
+        {ID, #container{node_name = Name, image = Image, status = Status}}
             <- maps:to_list(Containers)],
     {reply, List, S};
 
-handle_call({delete, ContainerName}, _, #state{containers = CTNs} = S) ->
+handle_call({delete, NodeName}, _, #state{containers = CTNs} = S) ->
     Partition = lists:partition(
-        fun ({_ ,#container{name = Name}}) when Name == ContainerName -> true;
+        fun ({_ ,#container{node_name = Name}}) when Name == NodeName -> true;
             (_) -> false
         end, maps:to_list(CTNs)),
     Remaining = case Partition of
-        {[{ContainerID, _}], Rest} ->
-            Cmd = binary_to_list(iolist_to_binary(["docker kill ", ContainerID])),
+        {[{_, #container{container_id = ContainerId}}], Rest} ->
+            Cmd = binary_to_list(iolist_to_binary(["docker rm --force ", ContainerId])),
             ?LOG_DEBUG("CMD: ~p",[Cmd]),
             os:cmd(Cmd),
             Rest;
@@ -101,48 +103,29 @@ handle_call(_, _, S) ->
 
 handle_cast({launch, Name, Opts}, #state{containers = Containers} = S) ->
     store_connections(Name, Opts),
-    ContainerID = exec_docker_run(Name, Opts),
-    Container = #container{
-        name = Name,
-        image = maps:get(<<"image">>, Opts),
-        status = unknown
-    },
-    ?LOG_NOTICE("Started container ~p",[Name]),
-    {noreply, S#state{containers = Containers#{ContainerID => Container}}};
+    {CID, Container} = exec_docker_run(Name, Opts),
+    ?LOG_NOTICE("Started node ~p",[Name]),
+    {noreply, S#state{containers = Containers#{CID => Container}}};
 
-handle_cast({log, ContainerID, Text}, #state{containers = _CTNs} = S) ->
+handle_cast({log, CID, Text}, #state{containers = _CTNs} = S) ->
     % TODO: store logs to query them later
-    ?LOG_DEBUG("[~p]: ~s", [ContainerID, Text]),
+    ?LOG_DEBUG("[~p]: ~s", [CID, Text]),
     {noreply, S};
 
-handle_cast({disconnect, ContainerID}, #state{containers = CTNs} = S) ->
+handle_cast({disconnect, CID}, #state{containers = CTNs} = S) ->
     case CTNs of
-        #{ContainerID := #container{name = N}} ->
-            ?LOG_NOTICE("Container ~p lost connection.", [N]),
-            {noreply, update_container_status(ContainerID, lost, S)};
+        #{CID := #container{node_name = N}} ->
+            ?LOG_NOTICE("Node ~p lost connection.", [N]),
+            {noreply, update_container_status(CID, lost, S)};
         _ ->
             {noreply, S}
     end;
 
-handle_cast({log, ContainerID, Text}, #state{containers = _CTNs} = S) ->
-    % TODO: store logs to query them later
-    ?LOG_DEBUG("[~p]: ~s",[ContainerID, Text]),
-    {noreply, S};
-
-handle_cast({disconnect, ContainerID}, #state{containers = CTNs} = S) ->
-    case CTNs of
-        #{ContainerID := #container{name = N}} ->
-            ?LOG_NOTICE("Container ~p lost connection.", [N]),
-            {noreply, update_container_status(ContainerID, lost, S)};
-        _ ->
-            {noreply, S}
-    end;
-
-handle_cast({event, ContainerID, Event}, #state{containers = CTNs} = S) ->
-    NewS = case maps:is_key(ContainerID, CTNs) of
-        true -> handle_event(ContainerID, Event, S);
+handle_cast({event, CID, Event}, #state{containers = CTNs} = S) ->
+    NewS = case maps:is_key(CID, CTNs) of
+        true -> handle_event(CID, Event, S);
         false ->
-            ?LOG_ERROR("Event from unexpected container ~p", [ContainerID]),
+            ?LOG_ERROR("Event from unexpected container ~p", [CID]),
             S
     end,
     {noreply, NewS};
@@ -172,10 +155,10 @@ store_connections(Node, #{<<"connections">> := Connections}) ->
     braidnet_epmd_server:store_connections(Node, Connections).
 
 exec_docker_run(Name, #{<<"image">> := DockerImage, <<"epmd_port">> := Port}) ->
-    ContainerId = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
+    CID = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
     RunCommandParts = [
         "docker run -d",
-        "--env CID=" ++ binary_to_list(ContainerId),
+        "--env CID=" ++ binary_to_list(CID),
         "--env NODE_NAME=" ++ binary_to_list(Name),
         "--env BRD_EPMD_PORT=" ++ binary_to_list(Port),
         "--hostname " ++ net_adm:localhost() ++ ".braidnet",
@@ -185,4 +168,11 @@ exec_docker_run(Name, #{<<"image">> := DockerImage, <<"epmd_port">> := Port}) ->
     RunCommand = string:join(RunCommandParts, " "),
     Result = string:trim(os:cmd(RunCommand)),
     ?LOG_DEBUG("Executed ~p~nResult: ~p", [RunCommand, Result]),
-    ContainerId.
+    ?LOG_DEBUG("Result: ~p", [Result]),
+    ContainerId = lists:last(string:split(Result, "\n", all)),
+    {CID, #container{
+        node_name = Name,
+        container_id = ContainerId,
+        image = DockerImage,
+        status = unknown
+    }}.

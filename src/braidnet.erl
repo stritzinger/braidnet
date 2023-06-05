@@ -55,17 +55,10 @@ list() ->
     braidnet_container:list().
 
 remove_configuration(NodesMap) ->
-    ThisNode = atom_to_binary(node()),
-    case NodesMap of
-        #{ThisNode := HostedNodes} ->
-            [braidnet_container:delete(Container) ||
-                {Container, _} <- maps:to_list(HostedNodes)],
-                ok;
-        _ ->
-            ?LOG_WARNING("Received a braid configuration"
-                         " that does not lists this orchestrator."),
-            skip
-    end.
+    {ok, ThisHost} = application:get_env(braidnet, hostname),
+    ToBeDestroyed = maps:get(ThisHost, NodesMap, #{}),
+    Names = [Name || {Name, _} <- maps:to_list(ToBeDestroyed)],
+    lists:foreach(fun braidnet_container:delete/1, Names).
 
 pause(Containers) ->
     ok.

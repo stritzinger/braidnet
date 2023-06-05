@@ -41,15 +41,15 @@
 Braid configuration for braidnet in json format
 
     {
-        "orchestrator@braidnet1.fly.dev" :
+        "braidnet1.fly.dev" :
             {
-                "Bob" : {"image" : "local/braidnode", "connections" : []},
-                "Alice" : {"image" : "local/fancynode", "connections" : []},
+                "Bob" : {"image" : "local/braidnode", "epmd_port" : "43591", "connections" : []},
+                "Alice" : {"image" : "local/fancynode", "epmd_port" : "43591", "connections" : []},
             },
-        "orchestrator@braidnet2.fly.dev" :
+        "braidnet2.fly.dev" :
             {
-                "Milva" : {"image" : "local/oil", "connections" : []},
-                "Frank" : {"image" : "local/beer", "connections" : []},
+                "Milva" : {"image" : "local/oil", "epmd_port" : "43591", "connections" : []},
+                "Frank" : {"image" : "local/beer", "epmd_port" : "43591", "connections" : []},
             }
     }
 
@@ -101,7 +101,7 @@ Braid configuration for braidnet in json format
 The launch configuration used in `/api/launch`.
 This does the opposite with a forcefull cleanup.
 Each orcherstrator will kill all containers managed by itself.
-This will run `docker kill`.
+This will run `docker rm --force`.
 
 ##### Responses
 
