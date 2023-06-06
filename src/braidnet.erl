@@ -49,16 +49,16 @@ test_nodes() ->
 launch_configuration(NodesMap) ->
     ThisHost = list_to_binary(net_adm:localhost()),
     LaunchHere = maps:get(ThisHost, NodesMap, #{}),
-    maps:foreach(fun braidnet_container:launch/2, LaunchHere).
+    maps:foreach(fun braidnet_orchestrator:launch/2, LaunchHere).
 
 list() ->
-    braidnet_container:list().
+    braidnet_orchestrator:list().
 
 remove_configuration(NodesMap) ->
     ThisHost = list_to_binary(net_adm:localhost()),
     ToBeDestroyed = maps:get(ThisHost, NodesMap, #{}),
     Names = [Name || {Name, _} <- maps:to_list(ToBeDestroyed)],
-    lists:foreach(fun braidnet_container:delete/1, Names).
+    lists:foreach(fun braidnet_orchestrator:delete/1, Names).
 
 pause(Containers) ->
     ok.
