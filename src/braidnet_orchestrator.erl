@@ -166,34 +166,5 @@ handle_info(Msg, S) ->
     ?LOG_ERROR("Unexpected msg: ~p",[Msg]),
     {noreply, S}.
 
-% update_container_status(ContainerID, NewStatus, #state{containers = CTNs} = S) ->
-%     #{ContainerID := CTN} = CTNs,
-%     Container = CTN#container{status = NewStatus},
-%     NewMap = maps:put(ContainerID, Container, CTNs),
-%     S#state{containers = NewMap}.
-
 store_connections(Node, #{<<"connections">> := Connections}) ->
     braidnet_epmd_server:store_connections(Node, Connections).
-
-% exec_docker_run(Name, #{<<"image">> := DockerImage, <<"epmd_port">> := Port}) ->
-%     CID = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
-%     RunCommandParts = [
-%         "docker run -d",
-%         "--env CID=" ++ binary_to_list(CID),
-%         "--env NODE_NAME=" ++ binary_to_list(Name),
-%         "--env BRD_EPMD_PORT=" ++ binary_to_list(Port),
-%         "--hostname " ++ net_adm:localhost() ++ ".braidnet",
-%         "--network host",
-%         binary_to_list(DockerImage)
-%     ],
-%     RunCommand = string:join(RunCommandParts, " "),
-%     Result = string:trim(os:cmd(RunCommand)),
-%     ?LOG_DEBUG("Executed ~p~nResult: ~p", [RunCommand, Result]),
-%     ?LOG_DEBUG("Result: ~p", [Result]),
-%     ContainerId = lists:last(string:split(Result, "\n", all)),
-%     {CID, #container{
-%         node_name = Name,
-%         container_id = ContainerId,
-%         image = DockerImage,
-%         status = unknown
-%     }}.

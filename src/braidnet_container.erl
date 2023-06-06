@@ -35,13 +35,6 @@ init([Name, CID, #{<<"image">> := DockerImage, <<"epmd_port">> := Port}]) ->
         exit_status
     ],
     ErlangPort = erlang:open_port({spawn_executable, Docker}, PortSettings),
-    % ContainerId = lists:last(string:split(Result, "\n", all)),
-    % {CID, #container{
-    %     node_name = Name,
-    %     container_id = ContainerId,
-    %     image = DockerImage,
-    %     status = unknown
-    % }}
     {ok, #state{cid = CID, port = ErlangPort}}.
 
 handle_call(Msg, _, S) ->
@@ -54,6 +47,8 @@ handle_cast(Msg, S) ->
 
 handle_info({Port, {data, Data}}, #state{cid = CID, port = Port} = S) ->
     braidnet_orchestrator:log(CID, Data),
+    % This is just to see container logs in early development
+    [?LOG_DEBUG("Container ~p: ~s", [CID, L]) || L <- string:split(Data, "\n", all)],
     {noreply, S};
 handle_info({Port, {exit_status, Code}}, #state{cid = CID, port = Port} = S) ->
     ?LOG_DEBUG("Container ~p, terminated with code ~p", [CID, Code]),
