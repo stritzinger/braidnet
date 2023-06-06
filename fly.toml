@@ -1,24 +1,21 @@
-# fly.toml app configuration file generated for braidnet-ams on 2023-06-01T10:01:34+02:00
+# fly.toml app configuration file generated for braidnet on 2023-06-06T17:14:32+02:00
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = "braidnet-ams"
+app = "braidnet"
 primary_region = "ams"
 kill_signal = "SIGINT"
 kill_timeout = "5s"
 
 [env]
   LOG_LEVEL = "debug"
-  ORIGIN = "braidnet-ams.fly.dev"
+  ORIGIN = "braidnet.fly.dev"
 
 [http_service]
   internal_port = 8080
   force_https = true
-  # auto_stop_machines = true
-  # auto_start_machines = true
-  # min_machines_running = 0
   [http_service.concurrency]
     type = "requests"
-    soft_limit = 200
     hard_limit = 250
+    soft_limit = 200
