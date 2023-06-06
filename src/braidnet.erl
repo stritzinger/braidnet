@@ -7,6 +7,7 @@
 
 -export([launch_configuration/1]).
 -export([list/0]).
+-export([logs/1]).
 -export([remove_configuration/1]).
 -export([pause/1]).
 -export([unpause/1]).
@@ -53,6 +54,9 @@ launch_configuration(NodesMap) ->
 
 list() ->
     braidnet_orchestrator:list().
+
+logs(CID) ->
+    braidnet_orchestrator:logs(CID).
 
 remove_configuration(NodesMap) ->
     ThisHost = list_to_binary(net_adm:localhost()),

@@ -11,6 +11,7 @@
 -export([start_link/0,
          launch/2,
          list/0,
+         logs/1,
          delete/1]).
 
 % Internal API
@@ -47,6 +48,9 @@ launch(Name, Opts) ->
 list() ->
     gen_server:call(?MODULE, ?FUNCTION_NAME).
 
+logs(CID) ->
+    gen_server:call(?MODULE, {?FUNCTION_NAME, CID}).
+
 delete(ContainerName) ->
     gen_server:call(?MODULE, {?FUNCTION_NAME, ContainerName}).
 
@@ -77,15 +81,21 @@ handle_call({verify, CID}, _, #state{containers = CTNs} = S) ->
         _ -> {reply, {error, unexpected_id}, S}
     end;
 
-handle_call(list, _, #state{containers = Containers} = S) ->
+handle_call(list, _, #state{containers = CTNs} = S) ->
     List =
     [#{id => ID,
        name => Name,
        image => Image,
        status => Status} ||
         {ID, #container{node_name = Name, image = Image, status = Status}}
-            <- maps:to_list(Containers)],
+            <- maps:to_list(CTNs)],
     {reply, List, S};
+
+handle_call({logs, CID}, _, #state{containers = CTNs} = S) ->
+    #container{
+        logs = Logs
+    } = maps:get(CID, CTNs),
+    {reply, Logs, S};
 
 handle_call({delete, NodeName}, _, #state{containers = CTNs} = S) ->
     Partition = lists:partition(

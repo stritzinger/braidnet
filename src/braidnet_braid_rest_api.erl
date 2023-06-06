@@ -4,6 +4,7 @@
 % API
 -export([init/2]).
 -export([allowed_methods/2]).
+-export([malformed_request/2]).
 -export([is_authorized/2]).
 -export([content_types_provided/2]).
 -export([content_types_accepted/2]).
@@ -32,9 +33,26 @@ is_authorized(Req, State) ->
         {{false, <<"Bearer">>}, Req, State}
     end.
 
-resource_exists(#{path := Path} = Req, _State) ->
+malformed_request(#{path := Path, qs := Qs} = Req, State) ->
     Method = filename:basename(Path),
     case Method of
+        <<"logs">> ->
+            case get_qs_entry(<<"cid">>, Qs) of
+                undefined -> {true, Req, State};
+                _CID -> {false, Req, Method}
+            end;
+        _ -> {false, Req, Method}
+    end.
+
+resource_exists(#{path := Path, qs := Qs} = Req, _State) ->
+    Method = filename:basename(Path),
+    case Method of
+        <<"logs">> ->
+            CID = get_qs_entry(<<"cid">>, Qs),
+            case braidnet_orchestrator:verify(CID) of
+                ok -> {true, Req, Method};
+                {error, _} -> {false, Req, Method}
+            end;
         <<"list">> -> {true, Req, Method};
         <<"destroy">> -> {true, Req, Method};
         _ -> {false, Req, Method}
@@ -57,6 +75,10 @@ delete_resource(Req, <<"destroy">> = S) ->
 
 to_json(Req, <<"list">> = S) ->
     Result = braidnet:list(),
+    {json_encode(Result), Req, S};
+to_json(#{qs := Qs} = Req, <<"logs">> = S) ->
+    CID = get_qs_entry(<<"cid">>, Qs),
+    Result = braidnet:logs(CID),
     {json_encode(Result), Req, S}.
 
 from_json(Req, <<"launch">> = S) ->
@@ -69,3 +91,6 @@ from_json(Req, <<"launch">> = S) ->
 json_decode(Msg) -> jiffy:decode(Msg, [return_maps]).
 
 json_encode(Msg) -> jiffy:encode(Msg).
+
+get_qs_entry(Key, Qs) ->
+    proplists:get_value(Key, uri_string:dissect_query(Qs)).

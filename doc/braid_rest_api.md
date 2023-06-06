@@ -1,28 +1,35 @@
 # Braidnet - Braid REST API
 
+All methods calls require an authentication token.
 
-All methods require a configuration that describes the topology
+    "Authorizaiton: Bearer Token"
 
-Braid configuration for braidnet in json format:
+For fly.io, the request must provide the fly.io machine in a special header
 
-    #{
-        'e28650eeb01e68' =>
-            #{
-                alice => #{
-                    image => <<"namespace/braidnode">>,
-                    epmd_port => <<"43591">>,
-                    connections => [bob]
+    "fly-force-instance-id: the-fly-machine-id"
+
+Most methods require a configuration that describes the topology
+
+This is an example of a valid json configuration
+
+    {
+        "e28650eeb01e68" :
+            {
+                "alice" => #{
+                    image => "namespace/braidnode",
+                    "epmd_port" => "43591",
+                    "connections" => ["bob"]
                 }
             },
-        '5683929b651208' =>
-            #{
-                bob => #{
-                    image => <<"namespace/braidnode">>,
-                    epmd_port => <<"43591">>,
-                    connections => [alice]
+        "5683929b651208" :
+            {
+                "bob" : {
+                    "image" : <<"namespace/braidnode">>,
+                    "epmd_port" : "43591",
+                    "connections" : ["alice"]
                 }
             }
-    }.
+    }
 
 ## Methods
 
@@ -62,6 +69,26 @@ Braid configuration for braidnet in json format.
 </details>
 
 <details>
+ <summary><code>GET</code> <code><b>/api/logs</b></code> - get the log dump of a single container</summary>
+
+##### Parameters
+
+> | name      |  type     | data type               | description                                                           |
+> |-----------|-----------|-------------------------|-----------------------------------------------------------------------|
+> | `container-id`  |  required | query string   |  The ID of the container |
+
+##### Responses
+
+> | http code     | content-type                      | response                                              |
+> |---------------|-----------------------------------|------------------------------------------------------|
+> | `200`         | `application/json`   | `a simple string`|
+> | `400`         | `...`   | `...`|
+> | `404`         | `...`   | `...`|
+
+
+</details>
+
+<details>
  <summary><code>POST</code> <code><b>/api/launch</b></code> - deploy a new braid configuration</summary>
 
 ##### Parameters
@@ -76,10 +103,10 @@ Braid configuration for braidnet in json format.
 
 </details>
 
-
-
 <details>
- <summary><code>DELETE</code> <code><b>/api/destroy</b></code> - removes all containers given a braidnet configuration </summary>
+ <summary><code>DELETE</code> <code><b>/api/destroy</b></code> - removes all containers given a braidnet configurationr</summary>
+
+This issues an ordered shutdown while deleting all internal data about the container.
 
 ##### Responses
 
