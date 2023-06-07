@@ -12,10 +12,6 @@
 -include_lib("kernel/include/logger.hrl").
 
 start(_StartType, _StartArgs) ->
-    try braidnet_fly_priv_net:discover()
-    catch _E:_R:_S -> ?LOG_NOTICE("Could not discover Fly machines.")
-    end,
-
     Port = application:get_env(braidnet, port, 8080),
     Dispatch = cowboy_router:compile([
         {'_', [
@@ -30,7 +26,7 @@ start(_StartType, _StartArgs) ->
     os:cmd("/usr/local/bin/dockerd-entrypoint.sh &"),
     braidnet_sup:start_link().
 
-stop(_State) -> kraft:stop().
+stop(_State) -> ok.
 
 %% internal functions
 

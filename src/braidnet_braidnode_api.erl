@@ -86,9 +86,15 @@ handle_jsonrpc(_, #{<<"method">> := Method,
                     <<"id">> := Id,
                     <<"params">> := Params}) ->
     Response = case Method of
-        <<"register_node">> -> braidnet_epmd_server:register_node(Params);
-        <<"address_please">> -> braidnet_epmd_server:address_please(Params);
-        <<"names">> -> braidnet_epmd_server:names(Params)
+        <<"register_node">> ->
+            #{<<"name">> := Name, <<"port">> := Port} = Params,
+            braidnet_epmd_server:register_node(Name, Port);
+        <<"address_please">> ->
+            #{<<"name">> := Name, <<"host">> := Host} = Params,
+            braidnet_epmd_server:address_please(Name, Host);
+        <<"names">> ->
+            #{<<"node">> := Node, <<"host">> := Host} = Params,
+            braidnet_epmd_server:names(Node, Host)
     end,
     jsonrpc_response_object(Id, Response);
 handle_jsonrpc(_CID, #{<<"method">> := Method, <<"params">> := _Params}) ->
@@ -97,6 +103,8 @@ handle_jsonrpc(_CID, #{<<"method">> := Method, <<"params">> := _Params}) ->
     end.
 
 -spec jsonrpc_response_object(binary(), term()) -> jiffy:json_value().
+jsonrpc_response_object(Id, Result) when is_tuple(Result) ->
+    jsonrpc_response_object(Id, erlang:tuple_to_list(Result));
 jsonrpc_response_object(Id, Result) ->
     Map = #{
         <<"jsonrpc">> => <<"2.0">>,
