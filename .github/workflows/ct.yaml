@@ -24,8 +24,7 @@ jobs:
         run: rebar3 compile
       - uses: docker-practice/actions-setup-docker@master
       - run: |
-          hostname
-          rebar3 ct
+          rebar3 ct -v
     #   - uses: superfly/flyctl-actions/setup-flyctl@master
     #   - name: deploy
     #     run: |

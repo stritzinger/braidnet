@@ -29,7 +29,6 @@
 -record(container, {
     node_name           :: binary(),
     ws_pid              :: undefined | pid(),
-    container_id        :: binary(), % the true docker container ID
     image               :: binary(),
     status = unknown    :: unknown | running | lost | paused,
     logs = ""           :: string()
@@ -114,15 +113,15 @@ handle_call({delete, NodeName}, _, #state{containers = CTNs} = S) ->
 handle_call(_, _, S) ->
     {reply, ok, S}.
 
-handle_cast({launch, Name, Opts}, #state{containers = Containers} = S) ->
+handle_cast({launch, Name, #{<<"image">> := Image} = Opts},
+             #state{containers = Containers} = S) ->
     store_connections(Name, Opts),
     CID = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
-    {ok, Child} = supervisor:start_child(braidnet_container_pool_sup, [Name, CID, Opts]),
-
+    {ok, _Child} = supervisor:start_child(braidnet_container_pool_sup,
+                                          [Name, CID, Opts]),
     CTN = #container{
         node_name = Name,
-        container_id = unknown,
-        image = not_set,
+        image = Image,
         status = unknown
     },
     ?LOG_NOTICE("Started node ~p",[Name]),
