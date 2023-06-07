@@ -103,10 +103,10 @@ handle_call({delete, NodeName}, _, #state{containers = CTNs} = S) ->
             (_) -> false
         end, maps:to_list(CTNs)),
     Remaining = case Partition of
-        {[{_, #container{ws_pid = WsPid}}], Rest} ->
+        {[{_, #container{ws_pid = WsPid}}], Rest} when is_pid(WsPid)->
             braidnet_braidnode_api:notify(WsPid, shutdown),
             Rest;
-        {[], Rest} ->
+        {_, Rest} ->
             Rest
     end,
     {reply, ok, S#state{containers = maps:from_list(Remaining)}};
