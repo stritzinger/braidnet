@@ -19,11 +19,11 @@ all() ->
 
 init_per_suite(Config) ->
     {ok, _} = application:ensure_all_started(braidnet),
-    {ok, [braid]} = application:ensure_all_started(braid),
+    {ok, _} = application:ensure_all_started(braid),
     application:set_env(braid, scheme, "http"),
-    application:set_env(braid, domain, "localhost"),
+    application:set_env(braid, braidnet_domain, "localhost"),
     application:set_env(braid, port, 8080),
-    application:set_env(braid, token, <<"dummy">>),
+    application:set_env(braid, braidnet_access_token, <<"dummy">>),
     Dir = ?config(data_dir, Config),
     BraidFile = filename:join([Dir, "braidnet.test.config"]),
     [{config_file, BraidFile} | Config].
@@ -35,18 +35,18 @@ end_per_suite(Config) ->
 init_per_testcase(_, Config) ->
     BraidFile = ?config(config_file, Config),
     ct:print("~p",[BraidFile]),
-    ?assertMatch([{_, <<"ok">>}], braid_rest:launch(BraidFile)),
+    ?assertMatch([{<<"localhost">>, {204, _}}], braid_rest:launch(BraidFile)),
     Config.
 
 end_per_testcase(_, Config) ->
     BraidFile = ?config(config_file, Config),
-    ?assertMatch([{_, <<"ok">>}], braid_rest:destroy(BraidFile)).
+    ?assertMatch([{<<"localhost">>, {204, _}}], braid_rest:destroy(BraidFile)).
 
 %--- Tests ---------------------------------------------------------------------
 
 list_test(Config) ->
     BraidFile = ?config(config_file, Config),
-    ?assertMatch([{_, [
+    ?assertMatch([{<<"localhost">>, {200, [
         #{
             <<"id">> := _,
             <<"image">> := _,
@@ -59,7 +59,7 @@ list_test(Config) ->
             <<"name">> := _,
             <<"status">> := _
         }
-    ]}], braid_rest:list(BraidFile)),
+    ]}}], braid_rest:list(BraidFile)),
     ok.
 
 % logs_test(Config) ->
