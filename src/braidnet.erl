@@ -59,17 +59,6 @@ test_node_fly(RemoteMachine) ->
     },
     launch_configuration(#{ThisHost => NodeMap}).
 
-test_node_fly(RemoteMachine) ->
-    ThisHost = braidnet_cluster:this_nodehost(),
-    NodeMap = #{
-        <<"braidnode">> => #{
-            <<"image">> => <<"ntshtng/braidnode">>,
-            <<"epmd_port">> => <<"43591">>,
-            <<"connections" >> => [<<"braidnode@", RemoteMachine/binary>>]
-        }
-    },
-    launch_configuration(#{ThisHost => NodeMap}).
-
 launch_configuration(NodesMap) ->
     ThisHost = get_hostname(),
     LaunchHere = maps:get(ThisHost, NodesMap, #{}),
@@ -98,5 +87,5 @@ unpause(Containers) ->
 get_hostname() ->
     case application:get_env(braidnet, hostname) of
         {ok, HostnameOverride} -> list_to_binary(HostnameOverride);
-        undefined -> braidnet_cluster:this_nodehost(),
+        undefined -> braidnet_cluster:this_nodehost()
     end.

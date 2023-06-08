@@ -28,7 +28,7 @@ init([Name, CID, #{<<"image">> := DockerImage, <<"epmd_port">> := Port}]) ->
             "--rm",
             "--env", "CID=" ++ binary_to_list(CID),
             "--env", "NODE_NAME=" ++ binary_to_list(Name),
-            "--env NODE_HOST=" ++ binary_to_list(NodeHost),
+            "--env", "NODE_HOST=" ++ binary_to_list(NodeHost),
             "--env", "BRD_EPMD_PORT=" ++ binary_to_list(Port),
             "--hostname", binary_to_list(NodeHost),
             "--network", "host",
