@@ -1,21 +1,21 @@
 [
-    {braidnet, [
-      {rest_api_token, <<"${AUTH_TOKEN}">>}
-    ]},
-    {kernel,[
-        {logger_level, ${LOG_LEVEL:-notice}},
-        {logger, [
-          {handler, default, logger_std_h, #{
-            formatter => {logger_formatter, #{
-              template => [
-                time, " ",
-                "[", level, "] ",
-                msg,
-                "\n"
-              ],
-              chars_limit => 3_000
-            }}
+  {braidnet, [
+    {rest_api_token, <<"${AUTH_TOKEN}">>}
+  ]},
+  {kernel,[
+      {logger_level, ${LOG_LEVEL:-notice}},
+      {logger, [
+        {handler, default, logger_std_h, #{
+          formatter => {logger_formatter, #{
+            template => [
+              time, " ",
+              "[", level, "] ",
+              msg,
+              "\n"
+            ],
+            chars_limit => 3_000
           }}
-        ]}
-    ]}
-  ].
+        }}
+      ]}
+  ]}
+].

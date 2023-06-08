@@ -1,5 +1,4 @@
 -module(braidnet_epmd_server).
-
 -behaviour(gen_server).
 
 % gen_server API
@@ -13,78 +12,115 @@
 
 % Braidnode EPMD API
 -export([
-    register_node/1,
-    address_please/1,
-    names/1
+    register_node/2,
+    address_please/2,
+    names/2
 ]).
 
 -export([store_connections/2]).
 
 -include_lib("kernel/include/logger.hrl").
 
+%-------------------------------------------------------------------------------
+% The name part of a node(), without the @host part:
+-type nodename()     :: binary().
+% The host part of a node():
+-type nodehost()     :: binary().
+% A node() in binary format:
+-type nodenamehost() :: binary().
+
+%-------------------------------------------------------------------------------
 -record(state, {
-    hostname :: bitstring(),
-    % Map of maps associating Hostnames with node => port maps:
-    nodes = #{} :: #{
-        Hostname :: bitstring() := #{
-            NodeName :: bitstring() => Port :: integer()
-        }
-    },
-    % Map storing which nodes a given node should connect to:
-    connections = #{} :: #{Node :: bitstring() := [Node :: bitstring()]}
+    % Map storing the distribution listen ports of local nodes:
+    nodes = #{}       :: #{nodename() := port()},
+    % Map storing which nodes a given local node should be able to connect to:
+    connections = #{} :: #{nodename() := [nodenamehost()]}
 }).
 
+%-------------------------------------------------------------------------------
+% Store which other Braidnodes a given Braidnode should be able to connect to.
+% We'll send this list to the node when it registers with this module.
+-spec store_connections(Node, Connections) -> Result when
+    Node :: nodename(),
+    Connections :: [nodenamehost()],
+    Result :: ok.
 store_connections(Node, Connections) ->
     gen_server:call(?MODULE, {?FUNCTION_NAME, Node, Connections}).
 
-register_node(#{<<"name">> := Name, <<"port">> := Port}) ->
+% Store a locally running Braidnode's name and its listen port.
+% We'll forward the port to other Braidnodes when they ask about how to
+% connect to this one using address_please/2.
+-spec register_node(Name, Port) -> Result when
+    Name :: nodename(),
+    Port :: port(),
+    Result :: {ok, Connections :: [nodehost()]}.
+register_node(Name, Port) ->
     gen_server:call(?MODULE, {?FUNCTION_NAME, Name, Port}).
 
-address_please(#{<<"host">> := Host, <<"name">> := Name}) ->
-    gen_server:call(?MODULE, {?FUNCTION_NAME, Host, Name}).
+% A Braidnode wants to connect to another and needs its IP.
+% Send this request to the gen_server running on the host in question.
+% We'll reply with the IP and the port of the target Braidnode.
+-spec address_please(Name, Host) -> Result | Error when
+    Name   :: nodename(),
+    Host   :: nodehost(),
+    Result :: {ok, IP :: string(), port()},
+    Error  :: {error, Reason :: atom()}.
+address_please(Name, Host) ->
+    Braidnet = braidnet_node_on_host(Host),
+    try gen_server:call({?MODULE, Braidnet}, {?FUNCTION_NAME, Name, Host}, 5000)
+    catch E:R:_S ->
+        logger:error("Unreachable node ~p: ~n~p~n", [Braidnet, {E, R}]),
+        [error, timeout]
+    end.
 
-names(#{<<"host">> := Host, <<"node">> := Node}) ->
-    gen_server:call(?MODULE, {?FUNCTION_NAME, Host, Node}).
+% Returns the node names (and their ports) registered by Braidnet on a host.
+% Note that this also includes nodes which this Braidnode did not connect to.
+-spec names(Node, Host) -> Result | Error when
+    Node :: nodenamehost(),
+    Host :: binary(), % Note that this is the OS hostname, not a nodehost()
+    Result :: {ok, #{nodename() := port()}},
+    Error  :: {error, Reason :: atom()}.
+names(Node, Host) ->
+    Braidnet = braidnet_node_on_host(Host),
+    try gen_server:call({?MODULE, Braidnet}, {?FUNCTION_NAME, Host, Node}, 5000)
+    catch E:R:_S ->
+        logger:error("Unreachable node ~p: ~n~p~n", [Braidnet, {E, R}]),
+        [error, timeout]
+    end.
 
+%-------------------------------------------------------------------------------
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 init(_) ->
-    ThisHost = erlang:list_to_binary(net_adm:localhost() ++ ".braidnet"),
-    Nodes = #{ThisHost => #{}},
-    {ok, #state{hostname = ThisHost, nodes = Nodes}}.
+    {ok, #state{}}.
 
 handle_call({store_connections, Node, NodeConns}, _, State) ->
-    #state{connections = Connections0} = State,
-    Connections1 = maps:put(Node, NodeConns, Connections0),
-    {reply, ok, State#state{connections = Connections1}};
+    NewConns = maps:put(Node, NodeConns, State#state.connections),
+    {reply, ok, State#state{connections = NewConns}};
 
-handle_call({register_node, Name, Port}, _, #state{nodes = NodeMap0} = State0) ->
-    NodesHere0 = maps:get(State0#state.hostname, NodeMap0),
-    NodesHere1 = NodesHere0#{Name => Port},
-    NodeMap1 = NodeMap0#{State0#state.hostname => NodesHere1},
-    State1 = State0#state{nodes = NodeMap1},
+handle_call({register_node, Name, Port}, _, State) ->
+    NewNodes = maps:put(Name, Port, State#state.nodes),
     % ---
-    Connections = node_connections(Name, State1#state.connections),
+    Connections = maps:get(Name, State#state.connections),
     % ---
     ?LOG_NOTICE("Node ~p registered with Braidnet EPMD.", [Name]),
-    {reply, [ok, Connections], State1};
+    {reply, {ok, Connections}, State#state{nodes = NewNodes}};
 
-handle_call({address_please, Host, Node}, _, State) ->
-    case node_ip_and_port(Host, Node, State) of
-        nxdomain -> {reply, [error, nxdomain], State};
-        unknown -> {reply, [error, unknown], State};
-        [IP, Port] -> {reply, [ok, IP, Port], State}
+handle_call({address_please, Name, Host}, _, State) ->
+    case node_ip_and_port(Name, Host, State#state.nodes) of
+        nxdomain ->
+            {reply, {error, nxdomain}, State};
+        noport ->
+            {reply, {error, noport}, State};
+        {IP, Port} ->
+            Reply = {ok, inet:ntoa(IP), Port},
+            {reply, Reply, State}
     end;
 
-handle_call({names, Host, Node}, _, #state{nodes = Nodes} = State) ->
-    BitstringHost = list_to_binary(Host),
-    NodesThere = maps:get(BitstringHost, Nodes, #{}),
-    [NodeShort | _] = binary:split(Node, <<"@">>),
-    CanSee = filter_visible_nodes(NodeShort, NodesThere,
-                                  BitstringHost, State#state.connections),
+handle_call({names, _Host, _Node}, _, State) ->
     % TODO: check if node is alive.
-    {reply, [ok, CanSee], State};
+    {reply, {ok, State#state.nodes}, State};
 
 handle_call(Msg, _From, S) ->
     ?LOG_ERROR("Unexpected call msg: ~p",[Msg]),
@@ -99,33 +135,30 @@ handle_info(Msg, S) ->
     {noreply, S}.
 
 % ------------------------------------------------------------------------------
-node_ip_and_port(Host, Node, State) when is_list(Host) ->
-    node_ip_and_port(erlang:list_to_binary(Host), Node, State);
-node_ip_and_port(Host, Node, State) when is_list(Node) ->
-    node_ip_and_port(Host, erlang:list_to_binary(Node), State);
-node_ip_and_port(Host, Node, #state{nodes = NodeMap} = State) ->
-    ThisHost = State#state.hostname,
-    NodesOnHost = maps:get(Host, NodeMap, undefined),
-    PortOrError = case {Host, NodesOnHost} of
-        {_, undefined} ->
+-spec node_ip_and_port(Name, Host, NodeMap) -> Result | Error when
+    Name    :: nodename(),
+    Host    :: nodehost(),
+    NodeMap :: #{nodename() := port()},
+    Result  :: {inet:ip_address(), port()},
+    Error   :: atom().
+node_ip_and_port(Name, <<"braid.local">>, NodeMap) ->
+    % Temporary solution for local development
+    case maps:get(Name, NodeMap, undefined) of
+        undefined -> noport;
+        Port -> {{0,0,0,0,0,0,0,1}, Port}
+    end;
+node_ip_and_port(Name, Host, NodeMap) ->
+    HostStr = erlang:binary_to_list(Host),
+    case {inet:getaddr(HostStr, inet6), maps:get(Name, NodeMap, undefined)} of
+        {{error, _}, _} ->
             nxdomain;
-        {ThisHost, Nodes} when is_map(Nodes) ->
-            maps:get(Node, NodesOnHost, unknown);
-        _ ->
-            ?LOG_DEBUG("asking for a remote address!"),
-            nxdomain
-    end,
-    case PortOrError of
-        Port when is_integer(Port) -> [[127,0,0,1], Port];
-        Error -> Error
+        {_, undefined} ->
+            noport;
+        {{ok, IP}, Port} ->
+            {IP, Port}
     end.
 
-node_connections(Node, Connections) ->
-    maps:get(Node, Connections).
-
-filter_visible_nodes(Node, NodesThere, Host, Connections) ->
-    NodeConnections = node_connections(Node, Connections),
-    maps:filter(fun(N, _) ->
-        FullName = <<N/binary, "@", Host/binary>>,
-        lists:member(FullName, NodeConnections)
-    end, NodesThere).
+-spec braidnet_node_on_host(nodehost()) -> node().
+braidnet_node_on_host(Host) ->
+    NodeName = braidnet_cluster:this_nodename(),
+    erlang:binary_to_atom(<<NodeName/binary, "@", Host/binary>>).

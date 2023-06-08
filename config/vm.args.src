@@ -1,0 +1,3 @@
+-name braidnet@${FLY_ALLOC_ID}.vm.${FLY_APP_NAME}.internal
+-setcookie cookie
+-proto_dist inet6_tcp

@@ -26,7 +26,7 @@ start(_StartType, _StartArgs) ->
     os:cmd("/usr/local/bin/dockerd-entrypoint.sh &"),
     braidnet_sup:start_link().
 
-stop(_State) -> kraft:stop().
+stop(_State) -> ok.
 
 %% internal functions
 

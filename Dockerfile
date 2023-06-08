@@ -3,7 +3,7 @@
 #--- Builder -------------------------------------------------------------------
 
 ARG profile=container
-ARG erlang_version=25.3.2
+ARG erlang_version=26.0
 FROM erlang:$erlang_version-alpine as builder
 
 WORKDIR /app/src
@@ -68,9 +68,8 @@ FROM docker:24.0-dind as runner
 
 WORKDIR /opt/braidnet/
 
-ENV COOKIE=braidnet \
     # write files generated during startup to /tmp
-    RELX_OUT_FILE_PATH=/tmp \
+ENV RELX_OUT_FILE_PATH=/tmp \
     # braidnet specific env variables to act as defaults
     LOGGER_LEVEL=debug \
     SCHEDULERS=1
@@ -85,6 +84,11 @@ RUN --mount=type=cache,id=apk,sharing=locked,target=/var/cache/apk \
         ncurses
 
 COPY --from=releaser /opt/rel .
+
+# Alias custom remote shell script under a single command
+RUN touch ~/.profile && \
+    echo 'alias remshell=/opt/braidnet/lib/braidnet-0.1.0/priv/remshell.sh' \
+    >> ~/.profile
 
 EXPOSE 80/tcp
 
