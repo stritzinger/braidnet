@@ -3,7 +3,7 @@
 %% @end
 %%%-------------------------------------------------------------------
 
--module(braidnet_sup).
+-module(braidnet_container_pool_sup).
 
 -behaviour(supervisor).
 
@@ -26,17 +26,13 @@ start_link() ->
 %%                  type => worker(),       % optional
 %%                  modules => modules()}   % optional
 init([]) ->
-    SupFlags = #{strategy => one_for_all,
-                 intensity => 0,
-                 period => 1},
+    SupFlags = #{strategy => simple_one_for_one,
+                 intensity => 1,
+                 period => 5},
     ChildSpecs = [
-        worker(braidnet_epmd_server, []),
-        supervisor(braidnet_container_pool_sup, []),
-        worker(braidnet_orchestrator, [])
+        #{id => braidnet_container,
+          start => {braidnet_container, start_link, []},
+          type => worker,
+          restart => transient}
     ],
     {ok, {SupFlags, ChildSpecs}}.
-
-%% internal functions
-
-worker(Module, Args) -> #{id => Module, start => {Module, start_link, Args}}.
-supervisor(Module, Args) -> #{id => Module, type => supervisor, start => {Module, start_link, Args}}.

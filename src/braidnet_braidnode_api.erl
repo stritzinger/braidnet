@@ -2,16 +2,30 @@
 
 
 % API
+-export([notify/2]).
+-export([notify/3]).
+
+-behaviour(cowboy_websocket).
+
 -export([init/2]).
+-export([websocket_init/1]).
 -export([websocket_handle/2]).
 -export([websocket_info/2]).
 -export([terminate/3]).
 
 -include_lib("kernel/include/logger.hrl").
 
--record(state, {container_id}).
+-record(state, {cid}).
 
-%--- API -----------------------------------------------------------------------
+
+
+notify(Pid, Method) ->
+    notify(Pid, Method, undefined).
+
+notify(Pid, Method, Params) ->
+    Pid ! {notify, Method, Params}.
+
+%--- WS Callbacks --------------------------------------------------------------
 init(Req, State) ->
     ?LOG_DEBUG("WS connection attempt..."),
     case cowboy_req:header(<<"id">>, Req, undefined) of
@@ -20,9 +34,9 @@ init(Req, State) ->
             Req1 = cowboy_req:reply(401, Req),
             {ok, Req1, State};
         ID ->
-            case braidnet_container:connect(ID) of
+            case braidnet_orchestrator:verify(ID) of
                 ok ->
-                    {cowboy_websocket, Req, #state{container_id = ID}};
+                    {cowboy_websocket, Req, #state{cid = ID}};
                 {error, E} ->
                     ?LOG_ERROR("Container ~p failed connecting: ~p",[ID, E]),
                     Req1 = cowboy_req:reply(401, Req),
@@ -30,7 +44,11 @@ init(Req, State) ->
             end
     end.
 
-websocket_handle(Frame = {binary, Binary}, #state{container_id = CID} = State) ->
+websocket_init(#state{cid = CID} = S) ->
+    braidnet_orchestrator:connect(CID, self()),
+    {[], S}.
+
+websocket_handle(Frame = {binary, Binary}, #state{cid = CID} = State) ->
     try
         Map = jiffy:decode(Binary, [return_maps]),
         case maps:is_key(<<"jsonrpc">>, Map) of
@@ -53,15 +71,16 @@ websocket_handle(Frame = {text, Text}, State) ->
 websocket_handle(_Frame, State) ->
     {ok, State}.
 
-websocket_info({log, Text}, State) ->
-    {[{text, Text}], State};
+websocket_info({notify, Method, Params}, State) ->
+    JsonRPC = jsonrpc_object(notification, Method, Params),
+    {[{binary, JsonRPC}], State};
 websocket_info(Info, State) ->
-    ?LOG_DEBUG("Incoming info: ~p", [Info]),
+    ?LOG_WARNING("Unexpected info: ~p", [Info]),
     {ok, State}.
 
-terminate(Reason, _, #state{container_id = ContainerId}) ->
+terminate(Reason, _, #state{cid = CID}) ->
     ?LOG_DEBUG("WS terminated ~p",[Reason]),
-    braidnet_container:disconnect(ContainerId).
+    braidnet_orchestrator:disconnect(CID).
 
 handle_jsonrpc(_, #{<<"method">> := Method,
                     <<"id">> := Id,
@@ -72,13 +91,10 @@ handle_jsonrpc(_, #{<<"method">> := Method,
         <<"names">> -> braidnet_epmd_server:names(Params)
     end,
     jsonrpc_response_object(Id, Response);
-handle_jsonrpc(CID, #{<<"method">> := Method, <<"params">> := Params}) ->
+handle_jsonrpc(_CID, #{<<"method">> := Method, <<"params">> := _Params}) ->
     case Method of
-        <<"log">> ->
-            #{<<"text">> := Text} = Params,
-            braidnet_container:log(CID, Text)
+        _ -> unhandled
     end.
-
 
 -spec jsonrpc_response_object(binary(), term()) -> jiffy:json_value().
 jsonrpc_response_object(Id, Result) ->
@@ -88,3 +104,20 @@ jsonrpc_response_object(Id, Result) ->
         <<"result">> => Result
     },
     jiffy:encode(Map).
+
+jsonrpc_object(Type, Method, Params) ->
+    Map1 = #{
+        <<"jsonrpc">> => <<"2.0">>,
+        <<"method">> => Method
+    },
+    Map2 = case Params of
+        undefined -> Map1;
+        _ -> maps:put(<<"params">>, Params, Map1)
+    end,
+     case Type of
+        request ->
+            ID = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
+            {ID,  jiffy:encode(maps:put(<<"id">>, ID, Map2))};
+        notification ->
+            jiffy:encode(Map2)
+    end.

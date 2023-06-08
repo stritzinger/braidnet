@@ -4,6 +4,7 @@
 % API
 -export([init/2]).
 -export([allowed_methods/2]).
+-export([malformed_request/2]).
 -export([is_authorized/2]).
 -export([content_types_provided/2]).
 -export([content_types_accepted/2]).
@@ -32,12 +33,34 @@ is_authorized(Req, State) ->
         {{false, <<"Bearer">>}, Req, State}
     end.
 
-resource_exists(#{path := Path} = Req, _State) ->
+malformed_request(#{path := Path, qs := Qs} = Req, State) ->
     Method = filename:basename(Path),
     case Method of
-        <<"list">> -> {true, Req, Method};
-        <<"destroy">> -> {true, Req, Method};
-        _ -> {false, Req, Method}
+        <<"list">> -> {false, Req, State};
+        <<"logs">> ->
+            case get_qs_entry(<<"cid">>, Qs) of
+                undefined -> {true, Req, State};
+                _CID -> {false, Req, State}
+            end;
+        _ ->
+            case check_config(Req) of
+                {ok, Cfg} -> {false, Req, Cfg};
+                error -> {true, Req, State}
+            end
+    end.
+
+resource_exists(#{path := Path, qs := Qs} = Req, State) ->
+    Method = filename:basename(Path),
+    case Method of
+        <<"logs">> ->
+            CID = get_qs_entry(<<"cid">>, Qs),
+            case braidnet_orchestrator:verify(CID) of
+                ok -> {true, Req, State};
+                {error, _} -> {false, Req, State}
+            end;
+        <<"list">> -> {true, Req, State};
+        <<"destroy">> -> {true, Req, State};
+        _ -> {false, Req, State}
     end.
 
 content_types_provided(Req, State) ->
@@ -46,26 +69,36 @@ content_types_provided(Req, State) ->
 content_types_accepted(Req, State) ->
     {[{<<"application/json">>, from_json}], Req, State}.
 
-delete_resource(Req, <<"destroy">> = S) ->
-    {ok, Body, Req1} = cowboy_req:read_body(Req),
-    LaunchConfig = json_decode(Body),
-    Result = braidnet:remove_configuration(LaunchConfig),
-    Req2 = cowboy_req:set_resp_body(json_encode(Result), Req1),
-    {true, Req2, S};
-delete_resource(Req, <<"destroy">> = S) ->
-    {false, Req, S}.
+delete_resource(#{bindings := #{method := <<"destroy">>}} = Req, BraidCfg = S) ->
+    braidnet:remove_configuration(BraidCfg),
+    {true, Req, S}.
 
-to_json(Req, <<"list">> = S) ->
+to_json(#{bindings := #{method := <<"list">>}} = Req, S) ->
     Result = braidnet:list(),
+    {json_encode(Result), Req, S};
+to_json(#{bindings := #{method := <<"logs">>}, qs := Qs} = Req, S) ->
+    CID = get_qs_entry(<<"cid">>, Qs),
+    Result = braidnet:logs(CID),
     {json_encode(Result), Req, S}.
 
-from_json(Req, <<"launch">> = S) ->
-    {ok, Body, Req1} = cowboy_req:read_body(Req),
-    LaunchConfig = json_decode(Body),
-    Result = braidnet:launch_configuration(LaunchConfig),
-    Req2 = cowboy_req:set_resp_body(json_encode(Result), Req1),
-    {true, Req2, S}.
+from_json(#{bindings := #{method := <<"launch">>}} = Req, BraidCfg = S) ->
+    braidnet:launch_configuration(BraidCfg),
+    {true, Req, S}.
+
+% INTERNALS --------------------------------------------------------------------
 
 json_decode(Msg) -> jiffy:decode(Msg, [return_maps]).
 
 json_encode(Msg) -> jiffy:encode(Msg).
+
+get_qs_entry(Key, Qs) ->
+    proplists:get_value(Key, uri_string:dissect_query(Qs)).
+
+check_config(Req) ->
+    {ok, Body, _Req1} = cowboy_req:read_body(Req),
+    try json_decode(Body) of
+        Cfg when is_map(Cfg) ->
+            {ok, Cfg};
+        _ -> error
+    catch _:_ -> error
+    end.

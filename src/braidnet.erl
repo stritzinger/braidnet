@@ -7,9 +7,12 @@
 
 -export([launch_configuration/1]).
 -export([list/0]).
+-export([logs/1]).
 -export([remove_configuration/1]).
 -export([pause/1]).
 -export([unpause/1]).
+
+-include_lib("kernel/include/logger.hrl").
 
 % dev api ----------------------------------------------------------------------
 test_node() ->
@@ -45,26 +48,32 @@ test_nodes() ->
     launch_configuration(#{Localhost => NodeMap}).
 
 launch_configuration(NodesMap) ->
-    %ThisNode = atom_to_binary(node()),
-    ThisHost = erlang:list_to_binary(net_adm:localhost()),
+    ThisHost = get_hostname(),
     LaunchHere = maps:get(ThisHost, NodesMap, #{}),
-    maps:foreach(fun braidnet_container:launch/2, LaunchHere).
+    maps:foreach(fun braidnet_orchestrator:launch/2, LaunchHere).
 
 list() ->
-    braidnet_container:list().
+    braidnet_orchestrator:list().
+
+logs(CID) ->
+    braidnet_orchestrator:logs(CID).
 
 remove_configuration(NodesMap) ->
-    ThisNode = atom_to_binary(node()),
-    case NodesMap of
-        #{ThisNode := HostedNodes} ->
-            [braidnet_container:delete(Container) ||
-                {Container, _} <- maps:to_list(HostedNodes)];
-        _ -> skip
-    end,
-    ok.
+    ThisHost =  get_hostname(),
+    ToBeDestroyed = maps:get(ThisHost, NodesMap, #{}),
+    Names = [Name || {Name, _} <- maps:to_list(ToBeDestroyed)],
+    lists:foreach(fun braidnet_orchestrator:delete/1, Names).
 
 pause(Containers) ->
     ok.
 
 unpause(Containers) ->
     ok.
+
+% Internal ---------------------------------------------------------------------
+
+get_hostname() ->
+    case application:get_env(braidnet, hostname) of
+        {ok, HostnameOverride} -> list_to_binary(HostnameOverride);
+        undefined -> list_to_binary(net_adm:localhost())
+    end.

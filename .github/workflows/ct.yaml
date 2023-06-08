@@ -1,0 +1,33 @@
+name: Fly Deploy
+on:
+  push:
+    branches:
+      - main
+      - ziopio/fly.io
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Build & test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        otp: ['25.3.2.2']
+        rebar3: ['3.22.0']
+    steps:
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{matrix.otp}}
+          rebar3-version: ${{matrix.rebar3}}
+      - uses: actions/checkout@v3
+      - name: Build
+        run: rebar3 compile
+      - uses: docker-practice/actions-setup-docker@master
+      - run: |
+          rebar3 ct -v
+    #   - uses: superfly/flyctl-actions/setup-flyctl@master
+    #   - name: deploy
+    #     run: |
+    #       flyctl deploy --remote-only
+    #     env:
+    #       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
