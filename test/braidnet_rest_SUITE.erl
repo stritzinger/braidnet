@@ -33,18 +33,18 @@ end_per_suite(Config) ->
 init_per_testcase(_, Config) ->
     BraidFile = ?config(config_file, Config),
     ct:print("~p",[BraidFile]),
-    ?assertMatch([{<<"localhost">>, {204, _}}], braid_rest:launch(BraidFile)),
+    ?assertMatch([{<<"braid-local">>, {204, _}}], braid_rest:launch(BraidFile)),
     Config.
 
 end_per_testcase(_, Config) ->
     BraidFile = ?config(config_file, Config),
-    ?assertMatch([{<<"localhost">>, {204, _}}], braid_rest:destroy(BraidFile)).
+    ?assertMatch([{<<"braid-local">>, {204, _}}], braid_rest:destroy(BraidFile)).
 
 %--- Tests ---------------------------------------------------------------------
 
 list_test(Config) ->
     BraidFile = ?config(config_file, Config),
-    ?assertMatch([{<<"localhost">>, {200, [
+    ?assertMatch([{<<"braid-local">>, {200, [
         #{
             <<"id">> := _,
             <<"image">> := _,
