@@ -60,7 +60,7 @@ test_node_fly(RemoteMachine) ->
     launch_configuration(#{ThisHost => NodeMap}).
 
 launch_configuration(NodesMap) ->
-    ThisHost = get_hostname(),
+    ThisHost = braidnet_cluster:this_nodehost(),
     LaunchHere = maps:get(ThisHost, NodesMap, #{}),
     maps:foreach(fun braidnet_orchestrator:launch/2, LaunchHere).
 
@@ -71,7 +71,7 @@ logs(CID) ->
     braidnet_orchestrator:logs(CID).
 
 remove_configuration(NodesMap) ->
-    ThisHost =  get_hostname(),
+    ThisHost = braidnet_cluster:this_nodehost(),
     ToBeDestroyed = maps:get(ThisHost, NodesMap, #{}),
     Names = [Name || {Name, _} <- maps:to_list(ToBeDestroyed)],
     lists:foreach(fun braidnet_orchestrator:delete/1, Names).
@@ -83,9 +83,3 @@ unpause(Containers) ->
     ok.
 
 % Internal ---------------------------------------------------------------------
-
-get_hostname() ->
-    case application:get_env(braidnet, hostname) of
-        {ok, HostnameOverride} -> list_to_binary(HostnameOverride);
-        undefined -> braidnet_cluster:this_nodehost()
-    end.
