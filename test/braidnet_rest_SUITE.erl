@@ -19,7 +19,6 @@ all() ->
 
 init_per_suite(Config) ->
     {ok, _} = application:ensure_all_started(braidnet),
-    {ok, _} = application:ensure_all_started(braid),
     application:set_env(braid, scheme, "http"),
     application:set_env(braid, braidnet_domain, "localhost"),
     application:set_env(braid, port, 8080),
@@ -29,7 +28,6 @@ init_per_suite(Config) ->
     [{config_file, BraidFile} | Config].
 
 end_per_suite(Config) ->
-    ok = application:stop(braid),
     Config.
 
 init_per_testcase(_, Config) ->
