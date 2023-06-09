@@ -30,7 +30,6 @@ init([]) ->
                  intensity => 0,
                  period => 1},
     ChildSpecs = [
-        worker(braidnet_cluster, []),
         worker(braidnet_epmd_server, []),
         supervisor(braidnet_container_pool_sup, []),
         worker(braidnet_orchestrator, [])

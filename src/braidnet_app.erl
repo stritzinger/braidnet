@@ -12,6 +12,8 @@
 -include_lib("kernel/include/logger.hrl").
 
 start(_StartType, _StartArgs) ->
+    braidnet_cluster:start(),
+    %---
     Port = application:get_env(braidnet, port, 8080),
     Dispatch = cowboy_router:compile([
         {'_', [
@@ -22,27 +24,12 @@ start(_StartType, _StartArgs) ->
     {ok, _} = cowboy:start_clear(example, [{port, Port}], #{
         env => #{dispatch => Dispatch}
     }),
+    %---
     ?LOG_DEBUG("Starting the docker deamon..."),
     os:cmd("/usr/local/bin/dockerd-entrypoint.sh &"),
+    %---
     braidnet_sup:start_link().
 
 stop(_State) -> ok.
 
 %% internal functions
-
-% routes(local) ->
-%     [
-%         {'_', [
-%             {"/braidnode", braidnet_braidnode_api, []},
-%             {"/api/[:method]", braidnet_braid_rest_api, []}
-%         ]}
-%     ];
-% routes(Hostname) ->
-%     [
-%         {"localhost", [
-%             {"/braidnode", braidnet_braidnode_api, []}
-%         ]},
-%         {Hostname, [
-%             {"/api/[:method]", braidnet_braid_rest_api, []}
-%         ]}
-%     ].

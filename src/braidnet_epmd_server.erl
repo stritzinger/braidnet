@@ -141,7 +141,7 @@ handle_info(Msg, S) ->
     NodeMap :: #{nodename() := port()},
     Result  :: {inet:ip_address(), port()},
     Error   :: atom().
-node_ip_and_port(Name, <<"braid.local">>, NodeMap) ->
+node_ip_and_port(Name, <<"braid-local">>, NodeMap) ->
     % Temporary solution for local development
     case maps:get(Name, NodeMap, undefined) of
         undefined -> noport;

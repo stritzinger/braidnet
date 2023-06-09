@@ -3,22 +3,26 @@
 -behaviour(gen_server).
 
 -export([
+    start/0,
     this_nodehost/0,
     this_nodename/0
-]).
-
-% gen_server API
--export([
-    start_link/0,
-    init/1,
-    handle_call/3,
-    handle_cast/2,
-    handle_info/2
 ]).
 
 -include_lib("kernel/include/inet.hrl").
 
 %-------------------------------------------------------------------------------
+-spec start() -> ok | ignore.
+start() ->
+    case os:getenv("FLY_APP_NAME") of
+        false ->
+            % No cluster when we are not on Fly.io.
+            ignore;
+        _ ->
+            Hosts = update_dns(),
+            ping_braidnets(Hosts)
+
+    end.
+
 % Returns the host part of the long name of this node, as a binary.
 -spec this_nodehost() -> binary().
 this_nodehost() ->
@@ -34,44 +38,6 @@ this_nodename() ->
     Name.
 
 %-------------------------------------------------------------------------------
-start_link() ->
-    case os:getenv("FLY_APP_NAME") of
-        false ->
-            % No need for this gen_server on your local machine.
-            ignore;
-        _ ->
-            gen_server:start_link({local, ?MODULE}, ?MODULE, [], [])
-    end.
-
-init(_) ->
-    Machines = fly_machines(),
-    Hosts = host_to_ip_map(Machines),
-    % ---
-    % https://web.archive.org/web/20150607063315/http://osdir.com/ml/lang.erlang.general/2004-04/msg00155.html
-    % https://twitter.com/st_deerl/status/489739674412679168
-    inet_db:set_lookup([file, dns]),
-    maps:foreach(fun(M, IP) ->
-        inet_db:add_host(IP, [M])
-    end, Hosts),
-    % ---
-    ping_fly_hosts(maps:keys(Hosts)),
-    logger:notice("Connected Braidnet nodes: ~p~n", [nodes()]),
-    add_hostname_to_hosts_file(),
-    {ok, []}.
-
-handle_call(Request, _From, State) ->
-    logger:notice("Unexpected call: ~p~n", [Request]),
-    {reply, ok, State}.
-
-handle_cast(Request, State) ->
-    logger:notice("Unexpected cast: ~p~n", [Request]),
-    {noreply, State}.
-
-handle_info(Request, State) ->
-    logger:notice("Unexpected info: ~p~n", [Request]),
-    {noreply, State}.
-
-%-------------------------------------------------------------------------------
 -spec fly_machines() -> [string()].
 fly_machines() ->
     #hostent{h_addr_list = MachineList} = fly_ns_machines(),
@@ -81,37 +47,43 @@ fly_machines() ->
         Machine
     end, MachinesWithRegions).
 
+-spec host_to_ip_map([string()]) -> #{string() := inet:ip6_address()}.
 host_to_ip_map(Machines) ->
     lists:foldl(fun(Machine, Acc) ->
         IP = fly_ip(Machine),
-        Hostname = fly_long_hostname(Machine),
-        maps:put(Hostname, IP, Acc)
+        maps:put(Machine, IP, Acc)
     end, #{}, Machines).
 
--spec fly_ip(string()) -> inet:ip_address().
+-spec fly_ip(string()) -> inet:ip6_address().
 fly_ip(Machine) ->
     #hostent{h_addr_list = [Address]} = fly_ns_machine(Machine),
     Address.
 
-ping_fly_hosts(Hosts) ->
+-spec update_dns() -> [string()].
+update_dns() ->
+    Hostnames = fly_machines(),
+    HostIpMap = host_to_ip_map(Hostnames),
+    %--
+    % https://web.archive.org/web/20150607063315/http://osdir.com/ml/lang.erlang.general/2004-04/msg00155.html
+    % https://twitter.com/st_deerl/status/489739674412679168
+    inet_db:set_lookup([file, dns]),
+    maps:foreach(fun(M, IP) -> inet_db:add_host(IP, [M]) end, HostIpMap),
+    %--
+    Hostnames.
+
+-spec ping_braidnets([string()]) -> ok.
+ping_braidnets(Hosts) ->
+    OtherHosts = lists:delete(net_adm:localhost(), Hosts),
     lists:foreach(fun(Host) ->
         HostBin = erlang:list_to_binary(Host),
         Name = this_nodename(),
         Node = erlang:binary_to_atom(<<Name/binary, "@", HostBin/binary>>),
         logger:notice("~p pings ~p: ~p~n", [node(), Node, net_adm:ping(Node)])
-    end, Hosts).
+    end, OtherHosts).
 
+-spec fly_app_name() -> string().
 fly_app_name() ->
     os:getenv("FLY_APP_NAME").
-
-fly_long_hostname(Machine) ->
-    string:join([Machine, "vm", fly_app_name(), "internal"], ".").
-
-add_hostname_to_hosts_file() ->
-    % This is needed to get the remote shell to work. For now.
-    Comment = "# Remote shell support:",
-    Entry = io_lib:format("~n~s~n127.0.0.1 ~s~n", [Comment, this_nodehost()]),
-    file:write_file("/etc/hosts", Entry, [append]).
 
 %-------------------------------------------------------------------------------
 % Fly.io private network queries

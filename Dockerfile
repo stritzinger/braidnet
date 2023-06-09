@@ -85,9 +85,9 @@ RUN --mount=type=cache,id=apk,sharing=locked,target=/var/cache/apk \
 
 COPY --from=releaser /opt/rel .
 
-# Alias custom remote shell script under a single command
+# Alias remote shell script under a single command
 RUN touch ~/.profile && \
-    echo 'alias remshell=/opt/braidnet/lib/braidnet-0.1.0/priv/remshell.sh' \
+    printf "%s\n" "alias remshell='/opt/braidnet/bin/braidnet remote_console'" \
     >> ~/.profile
 
 EXPOSE 80/tcp
