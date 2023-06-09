@@ -1,7 +1,5 @@
 -module(braidnet_cluster).
 
--behaviour(gen_server).
-
 -export([
     start/0,
     this_nodehost/0,
