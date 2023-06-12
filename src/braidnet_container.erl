@@ -26,6 +26,7 @@ init([Name, CID, #{<<"image">> := DockerImage, <<"epmd_port">> := Port}]) ->
         {args, [
             "run",
             "--rm",
+            "-v", "/Users/lucasucci/Desktop/teraflow/braidnet/priv/_dev_certs:/mnt/certs",
             "--env", "CID=" ++ binary_to_list(CID),
             "--env", "NODE_NAME=" ++ binary_to_list(Name),
             "--env", "NODE_HOST=" ++ binary_to_list(NodeHost),

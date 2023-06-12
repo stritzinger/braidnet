@@ -1,4 +1,4 @@
 -sname braidnet
 -setcookie cookie
 -proto_dist inet6_tls
--ssl_dist_optfile "/opt/braidnet/lib/braidnet-0.1.0/priv/prod.ssl_dist_opts.rel"
+-ssl_dist_optfile "lib/braidnet-0.1.0/priv/prod.ssl_dist_opts.rel"
