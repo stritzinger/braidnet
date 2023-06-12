@@ -1,0 +1,15 @@
+[
+    {server, [
+        {cacertfile, "/opt/braidnet/lib/braidnet-0.1.0/priv/_dev_certs/braidnet.local.CA.pem"},
+        {certfile, "/opt/braidnet/lib/braidnet-0.1.0/priv/_dev_certs/braidnet.local.pem"},
+        {keyfile, "/opt/braidnet/lib/braidnet-0.1.0/priv/_dev_certs/braidnet.local.key"},
+        {verify, verify_none},
+        {secure_renegotiate, true}
+    ]},
+    {client, [
+        {certfile, "/opt/braidnet/lib/braidnet-0.1.0/priv/_dev_certs/braidnet.local.pem"},
+        {keyfile, "/opt/braidnet/lib/braidnet-0.1.0/priv/_dev_certs/braidnet.local.key"},
+        {verify, verify_none},
+        {secure_renegotiate, true}
+    ]}
+].

@@ -19,3 +19,4 @@ logs
 rebar3.crashdump
 *~
 fly-personal.toml
+priv/_dev_certs
