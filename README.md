@@ -21,7 +21,7 @@ An OTP application to spawn containers and orchestrate comunication between them
 SSH to machine, for example:
 
     flyctl machines list
-    flyctl ssh console -a braidnet-ams -A fdaa:0:e75d:a7b:141:1445:ab0b:2
+    flyctl ssh console -A fdaa:0:e75d:a7b:13b:5fb:6e00:2
 
 Start Erlang shell:
 

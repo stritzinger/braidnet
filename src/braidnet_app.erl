@@ -18,7 +18,8 @@ start(_StartType, _StartArgs) ->
     Dispatch = cowboy_router:compile([
         {'_', [
             {"/braidnode", braidnet_braidnode_api, []},
-            {"/api/[:method]", braidnet_braid_rest_api, []}
+            {"/api/[:method]", braidnet_braid_rest_api, []},
+            {"/hc", braidnet_healthcheck, []}
         ]}
     ]),
     {ok, _} = cowboy:start_clear(example, [{port, Port}], #{

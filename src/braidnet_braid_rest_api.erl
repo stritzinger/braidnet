@@ -69,9 +69,10 @@ content_types_provided(Req, State) ->
 content_types_accepted(Req, State) ->
     {[{<<"application/json">>, from_json}], Req, State}.
 
-delete_resource(#{bindings := #{method := <<"destroy">>}} = Req, BraidCfg = S) ->
+delete_resource(#{bindings := #{method := <<"destroy">>}} = Req0, BraidCfg = S) ->
     braidnet:remove_configuration(BraidCfg),
-    {true, Req, S}.
+    Req1 = cowboy_req:reply(202, Req0),
+    {true, Req1, S}.
 
 to_json(#{bindings := #{method := <<"list">>}} = Req, S) ->
     Result = braidnet:list(),
@@ -81,9 +82,10 @@ to_json(#{bindings := #{method := <<"logs">>}, qs := Qs} = Req, S) ->
     Result = braidnet:logs(CID),
     {json_encode(Result), Req, S}.
 
-from_json(#{bindings := #{method := <<"launch">>}} = Req, BraidCfg = S) ->
+from_json(#{bindings := #{method := <<"launch">>}} = Req0, BraidCfg = S) ->
     braidnet:launch_configuration(BraidCfg),
-    {true, Req, S}.
+    Req1 = cowboy_req:reply(202, Req0),
+    {true, Req1, S}.
 
 % INTERNALS --------------------------------------------------------------------
 

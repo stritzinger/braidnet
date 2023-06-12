@@ -76,10 +76,10 @@ remove_configuration(NodesMap) ->
     Names = [Name || {Name, _} <- maps:to_list(ToBeDestroyed)],
     lists:foreach(fun braidnet_orchestrator:delete/1, Names).
 
-pause(Containers) ->
+pause(_Containers) ->
     ok.
 
-unpause(Containers) ->
+unpause(_Containers) ->
     ok.
 
 % Internal ---------------------------------------------------------------------

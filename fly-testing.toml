@@ -1,16 +1,16 @@
-# fly.toml app configuration file generated for braidnet on 2023-06-06T17:14:32+02:00
+# fly.toml app configuration file generated for braidnet-testing.
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = "braidnet"
+app = "braidnet-testing"
 primary_region = "ams"
 kill_signal = "SIGINT"
 kill_timeout = "5s"
 
 [env]
   LOG_LEVEL = "debug"
-  ORIGIN = "braidnet.fly.dev"
+  ORIGIN = "braidnet-testing.fly.dev"
 
 [http_service]
   internal_port = 8080

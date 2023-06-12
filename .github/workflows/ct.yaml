@@ -1,33 +1,58 @@
-name: Fly Deploy
+name: Run tests on Fly.io
 on:
   push:
     branches:
       - main
-      - ziopio/fly.io
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
   workflow_dispatch:
+
+env:
+  APP_NAME: braidnet-testing
 
 jobs:
   test:
-    name: Build & test
+    name: Deploy & test on Fly.io
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        otp: ['25.3.2.2']
+        otp: ['26.0']
         rebar3: ['3.22.0']
     steps:
-      - uses: erlef/setup-beam@v1
+      - name: Set up Erlang
+        uses: erlef/setup-beam@v1
         with:
           otp-version: ${{matrix.otp}}
           rebar3-version: ${{matrix.rebar3}}
-      - uses: actions/checkout@v3
-      - name: Build
-        run: rebar3 compile
-      - uses: docker-practice/actions-setup-docker@master
-      - run: |
-          rebar3 ct -v
-    #   - uses: superfly/flyctl-actions/setup-flyctl@master
-    #   - name: deploy
-    #     run: |
-    #       flyctl deploy --remote-only
-    #     env:
-    #       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - name: Set up flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Scale up
+        run: flyctl scale count 2 -a $APP_NAME --yes
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_BRAIDNET_TESTING }}
+
+      - name: Deploy
+        run: flyctl deploy --remote-only -c fly-testing.toml
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_BRAIDNET_TESTING }}
+
+      - name: Test!
+        run: rebar3 as test_on_fly ct -v
+        env:
+          BRAIDNET_ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN_BRAIDNET_TESTING }}
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_BRAIDNET_TESTING }}
+
+      - name: Scale down
+        if: always()
+        run: flyctl scale count 0 -a $APP_NAME --yes
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_BRAIDNET_TESTING }}
