@@ -25,6 +25,8 @@
     path % Path to the file containing the above map
 }).
 
+-define(braidnode_image, <<"ntshtng/braidnode:testing">>).
+
 %--- Tests ---------------------------------------------------------------------
 %% Test that Braidnet can accept and process a launch request.
 braidnet_rest_001(Config) ->
@@ -78,7 +80,7 @@ example_config(1, [Machine1 | _]) ->
         MachineAtom =>
             #{
                 n1 => #{
-                    image => <<"ziopio/braidnode">>,
+                    image => ?braidnode_image,
                     epmd_port => <<"43591">>,
                     connections => []
                 }
@@ -93,12 +95,12 @@ example_config(2, [Machine1 | _]) ->
         MachineAtom =>
             #{
                 n1 => #{
-                    image => <<"ziopio/braidnode">>,
+                    image => ?braidnode_image,
                     epmd_port => <<"43591">>,
                     connections => [N2Node]
                 },
                 n2 => #{
-                    image => <<"ziopio/braidnode">>,
+                    image => ?braidnode_image,
                     epmd_port => <<"43592">>,
                     connections => [N1Node]
                 }
