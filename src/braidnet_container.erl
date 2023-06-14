@@ -22,11 +22,15 @@ start_link(Name, CID, Opts) ->
 init([Name, CID, #{<<"image">> := DockerImage, <<"epmd_port">> := Port}]) ->
     Docker = os:find_executable("docker"),
     NodeHost = braidnet_cluster:this_nodehost(),
+    % Just for testing, each container should get its own certs in a dedicated directory
+    {ok, Cwd} = file:get_cwd(),
+    TestCertsDir  =application:get_env(braidnet, test_certs,
+                                    filename:join([Cwd, "priv", "_dev_certs"])),
     PortSettings = [
         {args, [
             "run",
             "--rm",
-            "-v", "/Users/lucasucci/Desktop/teraflow/braidnet/priv/_dev_certs:/mnt/certs",
+            "-v", TestCertsDir ++ ":/mnt/certs",
             "--env", "CID=" ++ binary_to_list(CID),
             "--env", "NODE_NAME=" ++ binary_to_list(Name),
             "--env", "NODE_HOST=" ++ binary_to_list(NodeHost),

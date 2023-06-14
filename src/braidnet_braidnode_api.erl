@@ -82,7 +82,7 @@ terminate(Reason, _, #state{cid = CID}) ->
     ?LOG_DEBUG("WS terminated ~p",[Reason]),
     braidnet_orchestrator:disconnect(CID).
 
-handle_jsonrpc(_, #{<<"method">> := Method,
+handle_jsonrpc(CID, #{<<"method">> := Method,
                     <<"id">> := Id,
                     <<"params">> := Params}) ->
     Response = case Method of
@@ -94,7 +94,12 @@ handle_jsonrpc(_, #{<<"method">> := Method,
             braidnet_epmd_server:address_please(Name, Host);
         <<"names">> ->
             #{<<"node">> := Node, <<"host">> := Host} = Params,
-            braidnet_epmd_server:names(Node, Host)
+            braidnet_epmd_server:names(Node, Host);
+        <<"sign">> ->
+            #{<<"payload">> := Payload,
+              <<"hash_alg">> := HashAlg,
+              <<"sign_alg">> := SignAlg} = Params,
+            braidnet_orchestrator:sign(CID, Payload, HashAlg, SignAlg)
     end,
     jsonrpc_response_object(Id, Response);
 handle_jsonrpc(_CID, #{<<"method">> := Method, <<"params">> := _Params}) ->

@@ -19,7 +19,8 @@
          connect/2,
          disconnect/1,
          log/2,
-         event/2]).
+         event/2,
+         sign/4]).
 
 -include_lib("kernel/include/logger.hrl").
 
@@ -68,6 +69,9 @@ log(ContainerID, Text) ->
 event(ContainerID, Event) ->
     gen_server:cast(?MODULE, {?FUNCTION_NAME, ContainerID, Event}).
 
+sign(ContainerID, Payload, HashAlg, SignAlg) ->
+    gen_server:call(?MODULE, {?FUNCTION_NAME, ContainerID, Payload, HashAlg, SignAlg}).
+
 % gen_server callbacks ---------------------------------------------------------
 
 init([]) ->
@@ -109,6 +113,15 @@ handle_call({delete, NodeName}, _, #state{containers = CTNs} = S) ->
             Rest
     end,
     {reply, ok, S#state{containers = maps:from_list(Remaining)}};
+
+handle_call({sign, CID, Payload, HashAlg, SignAlg}, _,
+            #state{containers = CTNs} = S) ->
+    case CTNs of
+        #{CID := #container{node_name = _N}} ->
+            Result = sign_container_payload(Payload, HashAlg, SignAlg),
+            {reply, Result, S};
+        _ -> {reply, {error, unknown_container}, S}
+    end;
 
 handle_call(_, _, S) ->
     {reply, ok, S}.
@@ -167,3 +180,25 @@ handle_info(Msg, S) ->
 
 store_connections(Node, #{<<"connections">> := Connections}) ->
     braidnet_epmd_server:store_connections(Node, Connections).
+
+sign_container_payload(Payload, <<"sha512">>, <<"rsa_pss_rsae">>) ->
+    try
+        Binary = base64:decode(Payload),
+    % TODO: use a dedicated PKI to retrieve the container's Private Key
+        Key = get_dummy_test_key(),
+        Opts =[{rsa_padding, rsa_pkcs1_pss_padding},
+                {rsa_pss_saltlen, -1},
+                {rsa_mgf1_md, sha512}],
+        Signature = public_key:sign(Binary, sha512, Key, Opts),
+        base64:encode(Signature)
+    catch error:E ->
+        ?LOG_ERROR("Error signing key: ~p",[E]),
+        #{error => E}
+    end.
+
+get_dummy_test_key() ->
+    PrivDir = code:priv_dir(braidnet),
+    KeyFile = filename:join([PrivDir, "_dev_certs", "braidnet.local.key"]),
+    {ok, PemBin} = file:read_file(KeyFile),
+    [PrivateKey] = public_key:pem_decode(PemBin),
+    public_key:pem_entry_decode(PrivateKey).
