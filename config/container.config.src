@@ -1,6 +1,8 @@
 [
   {braidnet, [
-    {rest_api_token, <<"${AUTH_TOKEN}">>}
+    {rest_api_token, <<"${AUTH_TOKEN}">>},
+    % Used when starting containers, this is WIP, will be dynamic
+    {test_certs, "/opt/braidnet/priv/_dev_certs"}
   ]},
   {kernel,[
       {logger_level, ${LOG_LEVEL:-notice}},
