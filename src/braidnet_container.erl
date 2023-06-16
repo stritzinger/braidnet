@@ -37,7 +37,8 @@ init([Name, CID, #{<<"image">> := DockerImage, <<"epmd_port">> := Port}]) ->
             "--network", "host",
             binary_to_list(DockerImage)
         ]},
-        exit_status
+        exit_status,
+        stderr_to_stdout
     ],
     ErlangPort = erlang:open_port({spawn_executable, Docker}, PortSettings),
     {ok, #state{cid = CID, port = ErlangPort}}.
@@ -56,8 +57,10 @@ handle_info({Port, {data, Data}}, #state{cid = CID, port = Port} = S) ->
     [?LOG_DEBUG("Container ~p: ~s", [CID, L]) || L <- string:split(Data, "\n", all)],
     {noreply, S};
 handle_info({Port, {exit_status, Code}}, #state{cid = CID, port = Port} = S) ->
-    ?LOG_DEBUG("Container ~p, terminated with code ~p", [CID, Code]),
     Reason = evaluate_exit_code(Code),
+    ?LOG_DEBUG("Container ~p, terminated with code ~p for reason: ~p", 
+              [CID, Code, Reason]),
+    braidnet_orchestrator:disconnect(CID),
     {stop, Reason, S};
 handle_info(Msg, S) ->
     ?LOG_ERROR("Unexpected info: ~p",[Msg]),
@@ -71,5 +74,4 @@ evaluate_exit_code(127) -> contained_command_cannot_be_found;
 evaluate_exit_code(130) -> ctrl_c;
 evaluate_exit_code(137) -> 'SIGKILL';
 evaluate_exit_code(143) -> 'SIGTERM';
-evaluate_exit_code(C) ->
-    C.
+evaluate_exit_code(_) -> unknown.

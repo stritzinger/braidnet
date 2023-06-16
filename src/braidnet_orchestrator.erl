@@ -31,7 +31,7 @@
     node_name           :: binary(),
     ws_pid              :: undefined | pid(),
     image               :: binary(),
-    status = unknown    :: unknown | running | lost | paused,
+    status = unknown    :: unknown | running | lost,
     logs = ""           :: string()
 }).
 
