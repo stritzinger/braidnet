@@ -130,14 +130,19 @@ handle_cast({launch, Name, #{<<"image">> := Image} = Opts},
              #state{containers = Containers} = S) ->
     store_connections(Name, Opts),
     CID = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
-    {ok, _Child} = supervisor:start_child(braidnet_container_pool_sup,
+    Result = supervisor:start_child(braidnet_container_pool_sup,
                                           [Name, CID, Opts]),
+    case Result of
+        {ok, _Child} ->
+            ?LOG_NOTICE("Started node ~p",[Name]);
+        {error, {shutdown, {failed_to_start_child, _, E}}} ->
+            ?LOG_NOTICE("Node Start Failure ~p", [E])
+    end,
     CTN = #container{
         node_name = Name,
         image = Image,
         status = unknown
     },
-    ?LOG_NOTICE("Started node ~p",[Name]),
     {noreply, S#state{containers = Containers#{CID => CTN}}};
 
 handle_cast({connect, CID, WSPid}, #state{containers = CTNs} = S) ->

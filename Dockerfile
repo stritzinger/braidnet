@@ -72,7 +72,8 @@ WORKDIR /opt/braidnet/
 ENV RELX_OUT_FILE_PATH=/tmp \
     # braidnet specific env variables to act as defaults
     LOGGER_LEVEL=debug \
-    SCHEDULERS=1
+    SCHEDULERS=1 \
+    DOCKER_CONTENT_TRUST=1
 
 # openssl needed by the crypto app
 RUN --mount=type=cache,id=apk,sharing=locked,target=/var/cache/apk \

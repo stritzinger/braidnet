@@ -19,10 +19,66 @@ start_link(Name, CID, Opts) ->
 
 % gen_server callbacks ---------------------------------------------------------
 
-init([Name, CID, #{<<"image">> := DockerImage, <<"epmd_port">> := Port}]) ->
+init([Name, CID, #{<<"image">> := DockerImage} = Opts]) ->
     Docker = os:find_executable("docker"),
+    case check_image_signature(Docker, DockerImage) of
+        ok ->
+            {ok, #state{cid = CID, port = docker_run(Docker, Name, CID, Opts)}};
+        {error, E} ->
+            ?LOG_WARNING("Rejecting unsigned image: ~p for: ~p",[DockerImage, E]),
+            braidnet_orchestrator:log(CID, "brainet: docker image has no trust data"),
+            {stop, E}
+    end.
+
+handle_call(Msg, _, S) ->
+    ?LOG_ERROR("Unexpected call ~p", [Msg]),
+    {reply, ok, S}.
+
+handle_cast(Msg, S) ->
+    ?LOG_ERROR("Unexpected cast ~p", [Msg]),
+    {noreply, S}.
+
+handle_info({Port, {data, Data}}, #state{cid = CID, port = Port} = S) ->
+    braidnet_orchestrator:log(CID, Data),
+    % This is just to see container logs in early development
+    [?LOG_DEBUG("Container ~p: ~s", [CID, L]) || L <- string:split(Data, "\n", all)],
+    {noreply, S};
+handle_info({Port, {exit_status, Code}}, #state{cid = CID, port = Port} = S) ->
+    Reason = evaluate_exit_code(Code),
+    ?LOG_DEBUG("Container ~p, terminated with code ~p for reason: ~p",
+              [CID, Code, Reason]),
+    braidnet_orchestrator:disconnect(CID),
+    {stop, Reason, S};
+handle_info(Msg, S) ->
+    ?LOG_ERROR("Unexpected info: ~p",[Msg]),
+    {noreply, S}.
+
+% INTERNAL ---------------------------------------------------------------------
+
+check_image_signature(Docker, DockerImage) ->
+    PortSettings = [
+        {args, [
+            "trust",
+            "inspect",
+            DockerImage
+        ]}
+    ],
+    Port = erlang:open_port({spawn_executable, Docker}, PortSettings),
+    Result = receive {Port, {data, Data}} ->
+        jiffy:decode(Data,[return_maps])
+    end,
+    case Result of
+        [] -> {error, no_signatures};
+        _ ->
+            % ?LOG_DEBUG("Trust inspect result: ~p",[Result]),
+            ok
+    end.
+
+docker_run(Docker, Name, CID,
+           #{<<"image">> := DockerImage, <<"epmd_port">> := Port}) ->
     NodeHost = braidnet_cluster:this_nodehost(),
-    % Just for testing; each container should get its own certs in a dedicated directory
+    % Just for testing:
+    % each container should get its own certs in a dedicated directory
     TestCertsDir = filename:join([code:priv_dir(braidnet), "_dev_certs"]),
     PortSettings = [
         {args, [
@@ -40,32 +96,7 @@ init([Name, CID, #{<<"image">> := DockerImage, <<"epmd_port">> := Port}]) ->
         exit_status,
         stderr_to_stdout
     ],
-    ErlangPort = erlang:open_port({spawn_executable, Docker}, PortSettings),
-    {ok, #state{cid = CID, port = ErlangPort}}.
-
-handle_call(Msg, _, S) ->
-    ?LOG_ERROR("Unexpected call ~p", [Msg]),
-    {reply, ok, S}.
-
-handle_cast(Msg, S) ->
-    ?LOG_ERROR("Unexpected cast ~p", [Msg]),
-    {noreply, S}.
-
-handle_info({Port, {data, Data}}, #state{cid = CID, port = Port} = S) ->
-    braidnet_orchestrator:log(CID, Data),
-    % This is just to see container logs in early development
-    [?LOG_DEBUG("Container ~p: ~s", [CID, L]) || L <- string:split(Data, "\n", all)],
-    {noreply, S};
-handle_info({Port, {exit_status, Code}}, #state{cid = CID, port = Port} = S) ->
-    Reason = evaluate_exit_code(Code),
-    ?LOG_DEBUG("Container ~p, terminated with code ~p for reason: ~p", 
-              [CID, Code, Reason]),
-    braidnet_orchestrator:disconnect(CID),
-    {stop, Reason, S};
-handle_info(Msg, S) ->
-    ?LOG_ERROR("Unexpected info: ~p",[Msg]),
-    {noreply, S}.
-
+    erlang:open_port({spawn_executable, Docker}, PortSettings).
 
 evaluate_exit_code(0) -> normal;
 evaluate_exit_code(125) -> docker_run_failure;
