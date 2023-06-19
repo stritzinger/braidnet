@@ -7,6 +7,7 @@ An OTP application to spawn containers and orchestrate comunication between them
     rebar3 compile
 
 ## Run
+Start Braidcert first in a separate shell, then:
 
     rebar3 shell
 
@@ -26,9 +27,3 @@ SSH to machine, for example:
 Start Erlang shell:
 
     remshell
-
-## TODO:
-- Tests!
-- EPMD:
-  - Check in names/1 if node is alive
-  - Clean up state when node goes down

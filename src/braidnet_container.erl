@@ -77,15 +77,16 @@ check_image_signature(Docker, DockerImage) ->
 docker_run(Docker, Name, CID,
            #{<<"image">> := DockerImage, <<"epmd_port">> := Port}) ->
     NodeHost = braidnet_cluster:this_nodehost(),
-    % Just for testing:
-    % each container should get its own certs in a dedicated directory
-    TestCertsDir = filename:join([code:priv_dir(braidnet), "_dev_certs"]),
+    StringCID = binary_to_list(CID),
+    CA = braidnet_cert:get_ca_file(),
+    Cert = braidnet_cert:new_braidnode_cert(StringCID),
     PortSettings = [
         {args, [
             "run",
             "--rm",
-            "-v", TestCertsDir ++ ":/mnt/certs",
-            "--env", "CID=" ++ binary_to_list(CID),
+            "-v", CA ++ ":/mnt/certs/braidcert.CA.pem",
+            "-v", Cert ++ ":/mnt/certs/braidnode.pem",
+            "--env", "CID=" ++ StringCID,
             "--env", "NODE_NAME=" ++ binary_to_list(Name),
             "--env", "NODE_HOST=" ++ binary_to_list(NodeHost),
             "--env", "BRD_EPMD_PORT=" ++ binary_to_list(Port),

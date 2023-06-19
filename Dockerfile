@@ -82,7 +82,8 @@ RUN --mount=type=cache,id=apk,sharing=locked,target=/var/cache/apk \
         libstdc++ \
         zip \
         openssl \
-        ncurses
+        ncurses \
+        curl
 
 COPY --from=releaser /opt/rel .
 
