@@ -59,7 +59,10 @@ braidnet_rest_003(Config) ->
             <<"name">> := _,
             <<"status">> := _
         }
-    ]}}], Response).
+    ]}}], Response),
+    {_, [#{<<"status">> := S1}, #{<<"status">> := S2}]} = Response,
+    ?assertNotMatch(<<"broken">>, S1),
+    ?assertNotMatch(<<"broken">>, S2).
 
 %--- Helpers -------------------------------------------------------------------
 % Writes a launch configuration to file,

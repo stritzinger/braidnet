@@ -31,7 +31,7 @@
     node_name           :: binary(),
     ws_pid              :: undefined | pid(),
     image               :: binary(),
-    status = unknown    :: unknown | running | lost,
+    status              :: starting | broken | running | lost,
     logs = ""           :: string()
 }).
 
@@ -132,16 +132,18 @@ handle_cast({launch, Name, #{<<"image">> := Image} = Opts},
     CID = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
     Result = supervisor:start_child(braidnet_container_pool_sup,
                                           [Name, CID, Opts]),
-    case Result of
+    Status = case Result of
         {ok, _Child} ->
-            ?LOG_NOTICE("Started node ~p",[Name]);
+            ?LOG_NOTICE("Started node ~p",[Name]),
+            starting;
         {error, {shutdown, {failed_to_start_child, _, E}}} ->
-            ?LOG_NOTICE("Node Start Failure ~p", [E])
+            ?LOG_NOTICE("Node Start Failure ~p", [E]),
+            broken
     end,
     CTN = #container{
         node_name = Name,
         image = Image,
-        status = unknown
+        status = Status
     },
     {noreply, S#state{containers = Containers#{CID => CTN}}};
 
