@@ -1,15 +1,13 @@
--module(braidnet_container_pool_sup).
+-module(braidnet_container_sup).
 
 -behaviour(supervisor).
 
--export([start_link/0]).
+-export([start_link/3]).
 
 -export([init/1]).
 
--define(SERVER, ?MODULE).
-
-start_link() ->
-    supervisor:start_link({local, ?SERVER}, ?MODULE, []).
+start_link(Name, CID, Opts) ->
+    supervisor:start_link(?MODULE, [Name, CID, Opts]).
 
 %% sup_flags() = #{strategy => strategy(),         % optional
 %%                 intensity => non_neg_integer(), % optional
@@ -20,12 +18,14 @@ start_link() ->
 %%                  shutdown => shutdown(), % optional
 %%                  type => worker(),       % optional
 %%                  modules => modules()}   % optional
-init([]) ->
-    SupFlags = #{strategy => simple_one_for_one},
+init([Name, CID, Opts]) ->
+    SupFlags = #{strategy => one_for_all,
+                 intensity => 1,
+                 period => 5},
     ChildSpecs = [
-        #{id => braidnet_container_sup,
-          start => {braidnet_container_sup, start_link, []},
-          type => supervisor,
-          restart => temporary}
+        #{id => braidnet_container,
+          start => {braidnet_container, start_link, [Name, CID, Opts]},
+          type => worker,
+          restart => transient}
     ],
     {ok, {SupFlags, ChildSpecs}}.

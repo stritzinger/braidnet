@@ -6,6 +6,7 @@
     this_nodename/0
 ]).
 
+-include_lib("kernel/include/logger.hrl").
 -include_lib("kernel/include/inet.hrl").
 
 %-------------------------------------------------------------------------------
@@ -13,7 +14,7 @@
 start() ->
     case os:getenv("FLY_APP_NAME") of
         false ->
-            % No cluster when we are not on Fly.io.
+            ?LOG_NOTICE("Not on Fly.io ... Not checking the cluster."),
             ignore;
         _ ->
             Hosts = update_dns(),
@@ -72,11 +73,12 @@ update_dns() ->
 -spec ping_braidnets([string()]) -> ok.
 ping_braidnets(Hosts) ->
     OtherHosts = lists:delete(net_adm:localhost(), Hosts),
+    ?LOG_DEBUG("Tryng to ping hosts: ~p...",[OtherHosts]),
     lists:foreach(fun(Host) ->
         HostBin = erlang:list_to_binary(Host),
         Name = this_nodename(),
         Node = erlang:binary_to_atom(<<Name/binary, "@", HostBin/binary>>),
-        logger:notice("~p pings ~p: ~p~n", [node(), Node, net_adm:ping(Node)])
+        ?LOG_NOTICE("~p pings ~p: ~p~n", [node(), Node, net_adm:ping(Node)])
     end, OtherHosts).
 
 -spec fly_app_name() -> string().
