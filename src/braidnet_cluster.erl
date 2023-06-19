@@ -40,7 +40,7 @@ this_nodename() ->
 -spec fly_machines() -> [string()].
 fly_machines() ->
     #hostent{h_addr_list = MachineList} = fly_ns_machines(),
-    MachinesWithRegions = string:split(lists:flatten(MachineList), ","),
+    MachinesWithRegions = string:split(lists:flatten(MachineList), ",", all),
     lists:map(fun(M) ->
         [Machine, _Region] = string:split(M, " "),
         Machine
@@ -73,7 +73,7 @@ update_dns() ->
 -spec ping_braidnets([string()]) -> ok.
 ping_braidnets(Hosts) ->
     OtherHosts = lists:delete(net_adm:localhost(), Hosts),
-    ?LOG_DEBUG("Tryng to ping hosts: ~p...",[OtherHosts]),
+    ?LOG_DEBUG("Trying to ping hosts: ~p...",[OtherHosts]),
     lists:foreach(fun(Host) ->
         HostBin = erlang:list_to_binary(Host),
         Name = this_nodename(),
