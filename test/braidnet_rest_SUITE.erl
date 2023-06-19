@@ -25,7 +25,7 @@
     path % Path to the file containing the above map
 }).
 
--define(braidnode_image, <<"ntshtng/braidnode:testing">>).
+-define(braidnode_image, <<"ziopio/braidnode:testing">>).
 
 %--- Tests ---------------------------------------------------------------------
 %% Test that Braidnet can accept and process a launch request.
@@ -60,7 +60,7 @@ braidnet_rest_003(Config) ->
             <<"status">> := _
         }
     ]}}], Response),
-    {_, [#{<<"status">> := S1}, #{<<"status">> := S2}]} = Response,
+    [{_, {_, [#{<<"status">> := S1}, #{<<"status">> := S2}]}}] = Response,
     ?assertNotMatch(<<"broken">>, S1),
     ?assertNotMatch(<<"broken">>, S2).
 
