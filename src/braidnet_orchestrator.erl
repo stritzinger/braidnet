@@ -12,7 +12,8 @@
          launch/2,
          list/0,
          logs/1,
-         delete/1]).
+         delete/1,
+         get_ws_pid/1]).
 
 % Internal API
 -export([verify/1,
@@ -53,6 +54,9 @@ logs(CID) ->
 
 delete(ContainerName) ->
     gen_server:call(?MODULE, {?FUNCTION_NAME, ContainerName}).
+
+get_ws_pid(CID) ->
+    gen_server:call(?MODULE, {?FUNCTION_NAME, CID}).
 
 verify(ContainerID) ->
     gen_server:call(?MODULE, {?FUNCTION_NAME, ContainerID}).
@@ -99,6 +103,12 @@ handle_call({logs, CID}, _, #state{containers = CTNs} = S) ->
         logs = Logs
     } = maps:get(CID, CTNs),
     {reply, Logs, S};
+
+handle_call({get_ws_pid, CID}, _, #state{containers = CTNs} = S) ->
+    #container{
+        ws_pid = Pid
+    } = maps:get(CID, CTNs),
+    {reply, Pid, S};
 
 handle_call({delete, NodeName}, _, #state{containers = CTNs} = S) ->
     Partition = lists:partition(

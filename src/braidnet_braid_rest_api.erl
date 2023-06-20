@@ -38,9 +38,15 @@ malformed_request(#{path := Path, qs := Qs} = Req, State) ->
     case Method of
         <<"list">> -> {false, Req, State};
         <<"logs">> ->
-            case get_qs_entry(<<"cid">>, Qs) of
-                undefined -> {true, Req, State};
-                _CID -> {false, Req, State}
+            case check_qs_keys([<<"cid">>], Qs) of
+                false -> {true, Req, State};
+                true -> {false, Req, State}
+            end;
+        <<"rpc">> ->
+            Keys = [<<"cid">>, <<"m">>, <<"f">>, <<"args">>],
+            case check_qs_keys(Keys, Qs) of
+                false -> {true, Req, State};
+                true -> {false, Req, State}
             end;
         _ ->
             case check_config(Req) of
@@ -52,7 +58,7 @@ malformed_request(#{path := Path, qs := Qs} = Req, State) ->
 resource_exists(#{path := Path, qs := Qs} = Req, State) ->
     Method = filename:basename(Path),
     case Method of
-        <<"logs">> ->
+        M when M == <<"logs">> orelse M == <<"rpc">> ->
             CID = get_qs_entry(<<"cid">>, Qs),
             case braidnet_orchestrator:verify(CID) of
                 ok -> {true, Req, State};
@@ -80,6 +86,13 @@ to_json(#{bindings := #{method := <<"list">>}} = Req, S) ->
 to_json(#{bindings := #{method := <<"logs">>}, qs := Qs} = Req, S) ->
     CID = get_qs_entry(<<"cid">>, Qs),
     Result = braidnet:logs(CID),
+    {json_encode(Result), Req, S};
+to_json(#{bindings := #{method := <<"rpc">>}, qs := Qs} = Req, S) ->
+    CID = get_qs_entry(<<"cid">>, Qs),
+    M = get_qs_entry(<<"m">>, Qs),
+    F = get_qs_entry(<<"f">>, Qs),
+    A = get_qs_entry(<<"args">>, Qs),
+    Result = braidnet:rpc(CID, M, F, A),
     {json_encode(Result), Req, S}.
 
 from_json(#{bindings := #{method := <<"launch">>}} = Req0, BraidCfg = S) ->
@@ -92,6 +105,10 @@ from_json(#{bindings := #{method := <<"launch">>}} = Req0, BraidCfg = S) ->
 json_decode(Msg) -> jiffy:decode(Msg, [return_maps]).
 
 json_encode(Msg) -> jiffy:encode(Msg).
+
+check_qs_keys(Entries, Qs) ->
+    lists:all(fun(undefined) -> false; (_) -> true end,
+              [get_qs_entry(K, Qs)  || K <- Entries]).
 
 get_qs_entry(Key, Qs) ->
     proplists:get_value(Key, uri_string:dissect_query(Qs)).
