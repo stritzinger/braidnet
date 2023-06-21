@@ -140,20 +140,11 @@ handle_cast({launch, Name, #{<<"image">> := Image} = Opts},
              #state{containers = Containers} = S) ->
     store_connections(Name, Opts),
     CID = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
-    Result = supervisor:start_child(braidnet_container_pool_sup,
-                                          [Name, CID, Opts]),
-    Status = case Result of
-        {ok, _Child} ->
-            ?LOG_NOTICE("Started node ~p",[Name]),
-            starting;
-        {error, {shutdown, {failed_to_start_child, _, E}}} ->
-            ?LOG_NOTICE("Node Start Failure ~p", [E]),
-            broken
-    end,
+    async_start_child(Name, CID, Opts),
     CTN = #container{
         node_name = Name,
         image = Image,
-        status = Status
+        status = starting
     },
     {noreply, S#state{containers = Containers#{CID => CTN}}};
 
@@ -217,3 +208,19 @@ get_key(CID) ->
     {ok, PemBin} = file:read_file(KeyFile),
     [PrivateKey] = public_key:pem_decode(PemBin),
     public_key:pem_entry_decode(PrivateKey).
+
+
+async_start_child(Name, CID, Opts) ->
+    spawn(fun() ->
+        Result = supervisor:start_child(braidnet_container_pool_sup,
+                                        [Name, CID, Opts]),
+        _Status = case Result of
+            {ok, _Child} ->
+                ?LOG_NOTICE("Started node ~p",[Name]),
+                starting;
+            {error, {shutdown, {failed_to_start_child, _, E}}} ->
+                ?LOG_NOTICE("Node Start Failure ~p", [E]),
+                broken
+        end
+        % TODO report status to orchestrator
+    end).
