@@ -1,0 +1,30 @@
+#!/bin/ash
+
+
+# Get the Braidcert CA:
+curl \
+    -X GET https://braidcert.fly.dev/ca \
+    -H "Authorization: Bearer ${BRAIDCERT_KEY}" \
+    >> certs/braidcert.CA.pem
+
+# Generate a private key for the signing request:
+openssl genrsa -out certs/braidnet.key 4096
+
+# Generate a certificate signing request for this Braidnet instance:
+openssl req \
+    -new \
+    -config certs/cfg/braidnet.cfg \
+    -key certs/braidnet.key \
+    -addext subjectAltName=DNS.0:"${FLY_MACHINE_ID}" \
+    -out certs/braidnet.csr
+
+# Send the request to Braidcert and save the resulting certificate:
+curl \
+    -X PUT https://braidcert.fly.dev/csr/"${FLY_MACHINE_ID}" \
+    -H "Authorization: Bearer ${BRAIDCERT_KEY}" \
+    -H "Content-Type: application/octet-stream" \
+    --data-binary "@certs/braidnet.csr" \
+    >> certs/braidnet.pem
+
+# Remove the request file:
+rm certs/braidnet.csr

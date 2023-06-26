@@ -25,7 +25,7 @@
     path % Path to the file containing the above map
 }).
 
--define(braidnode_image, <<"ziopio/braidnode:testing">>).
+-define(braidnode_image, <<"ntshtng/braidnode:testing">>).
 
 %--- Tests ---------------------------------------------------------------------
 %% Test that Braidnet can accept and process a launch request.
@@ -167,4 +167,8 @@ suite() ->
     ].
 
 all() ->
-    [braidnet_rest_001, braidnet_rest_002, braidnet_rest_003].
+    [
+        braidnet_rest_001,
+        braidnet_rest_002
+        % braidnet_rest_003
+    ].

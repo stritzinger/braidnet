@@ -1,6 +1,8 @@
 [
   {braidnet, [
-    {rest_api_token, <<"${AUTH_TOKEN}">>}
+    {rest_api_token, <<"${AUTH_TOKEN}">>},
+    {braidcert_url, "https://braidcert.fly.dev/csr/"},
+    {braidcert_key, "${BRAIDCERT_KEY}"}
   ]},
   {kernel,[
       {logger_level, ${LOG_LEVEL:-notice}},

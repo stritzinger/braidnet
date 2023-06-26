@@ -20,7 +20,7 @@ test_node() ->
     ThisHost = braidnet_cluster:this_nodehost(),
     NodeMap = #{
         <<"dummy_container">> => #{
-            <<"image">> => <<"local/braidnode">>,
+            <<"image">> => <<"ntshtng/braidnode:signed">>,
             <<"epmd_port">> => <<"43591">>,
             <<"connections" >> => []
         }
@@ -31,17 +31,17 @@ test_nodes() ->
     ThisHost = braidnet_cluster:this_nodehost(),
     NodeMap = #{
         <<"n1">> => #{
-            <<"image">> => <<"local/braidnode">>,
+            <<"image">> => <<"ntshtng/braidnode:signed">>,
             <<"epmd_port">> => <<"43591">>,
             <<"connections">> => [<<"n2@", ThisHost/binary>>]
         },
         <<"n2">> => #{
-            <<"image">> => <<"local/braidnode">>,
+            <<"image">> => <<"ntshtng/braidnode:signed">>,
             <<"epmd_port">> => <<"43592">>,
             <<"connections">> => [<<"n1@", ThisHost/binary>>]
         },
         <<"dummy_container">> => #{
-            <<"image">> => <<"local/braidnode">>,
+            <<"image">> => <<"ntshtng/braidnode:signed">>,
             <<"epmd_port">> => <<"43593">>,
             <<"connections" >> => []
         }
@@ -52,7 +52,7 @@ test_node_fly(RemoteMachine) ->
     ThisHost = braidnet_cluster:this_nodehost(),
     NodeMap = #{
         <<"braidnode">> => #{
-            <<"image">> => <<"ntshtng/braidnode">>,
+            <<"image">> => <<"ntshtng/braidnode:signed">>,
             <<"epmd_port">> => <<"43591">>,
             <<"connections" >> => [<<"braidnode@", RemoteMachine/binary>>]
         }

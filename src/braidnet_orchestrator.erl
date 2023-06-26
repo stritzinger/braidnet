@@ -118,7 +118,7 @@ handle_call({sign, CID, Payload, HashAlg, SignAlg}, _,
             #state{containers = CTNs} = S) ->
     case CTNs of
         #{CID := #container{node_name = _N}} ->
-            Result = sign_container_payload(Payload, HashAlg, SignAlg),
+            Result = sign_container_payload(CID, Payload, HashAlg, SignAlg),
             {reply, Result, S};
         _ -> {reply, {error, unknown_container}, S}
     end;
@@ -188,24 +188,22 @@ handle_info(Msg, S) ->
 store_connections(Node, #{<<"connections">> := Connections}) ->
     braidnet_epmd_server:store_connections(Node, Connections).
 
-sign_container_payload(Payload, <<"sha512">>, <<"rsa_pss_rsae">>) ->
+sign_container_payload(CID, Payload, <<"sha512">>, <<"rsa_pss_rsae">>) ->
     try
         Binary = base64:decode(Payload),
-    % TODO: use a dedicated PKI to retrieve the container's Private Key
-        Key = get_dummy_test_key(),
-        Opts =[{rsa_padding, rsa_pkcs1_pss_padding},
+        Key = get_key(CID),
+        Opts = [{rsa_padding, rsa_pkcs1_pss_padding},
                 {rsa_pss_saltlen, -1},
                 {rsa_mgf1_md, sha512}],
         Signature = public_key:sign(Binary, sha512, Key, Opts),
         base64:encode(Signature)
     catch error:E ->
-        ?LOG_ERROR("Error signing key: ~p",[E]),
+        ?LOG_ERROR("Error signing key: ~p", [E]),
         #{error => E}
     end.
 
-get_dummy_test_key() ->
-    PrivDir = code:priv_dir(braidnet),
-    KeyFile = filename:join([PrivDir, "_dev_certs", "braidnet.local.key"]),
+get_key(CID) ->
+    KeyFile = braidnet_cert:get_private_key_file(CID),
     {ok, PemBin} = file:read_file(KeyFile),
     [PrivateKey] = public_key:pem_decode(PemBin),
     public_key:pem_entry_decode(PrivateKey).
