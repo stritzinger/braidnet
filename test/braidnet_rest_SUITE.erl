@@ -32,21 +32,20 @@
 braidnet_rest_001(Config) ->
     LaunchConfig = ?config(launch_config, Config),
     Response = braid_rest:launch(LaunchConfig#launchConfig.path),
-    ?assertMatch([{_, {202, _}}], Response).
+    ?assertMatch([{_, {204, _}}], Response).
 
 %% Test that Braidnet can accept and process a removal request.
 braidnet_rest_002(Config) ->
     LaunchConfig = ?config(launch_config, Config),
     Response = braid_rest:destroy(LaunchConfig#launchConfig.path),
-    ?assertMatch([{_, {202, _}}], Response).
+    ?assertMatch([{_, {204, _}}], Response).
 
 %% Test that listing the running configuration works.
 braidnet_rest_003(Config) ->
     LaunchConfig = proplists:get_value(launch_config, Config),
     Response = braid_rest:list(LaunchConfig#launchConfig.path),
     [Machine] = maps:keys(LaunchConfig#launchConfig.map),
-    MachineBin = erlang:atom_to_binary(Machine),
-    ?assertMatch([{MachineBin, {200, [
+    ?assertMatch([{Machine, {200, [
         #{
             <<"id">> := _,
             <<"image">> := _,
@@ -78,33 +77,28 @@ write_launch_config(Id, CtConfig) ->
 
 example_config(1, [Machine1 | _]) ->
     % A configuration with one node on one machine, no connections
-    MachineAtom = erlang:binary_to_atom(Machine1),
     #{
-        MachineAtom =>
+        Machine1 =>
             #{
                 n1 => #{
                     image => ?braidnode_image,
-                    epmd_port => <<"43591">>,
                     connections => []
                 }
             }
     };
 example_config(2, [Machine1 | _]) ->
     % A configuration with two nodes on one machine, connected.
-    MachineAtom = erlang:binary_to_atom(Machine1),
     N1Node = erlang:binary_to_atom(<<"n1@", Machine1/binary>>),
     N2Node = erlang:binary_to_atom(<<"n2@", Machine1/binary>>),
     #{
-        MachineAtom =>
+        Machine1 =>
             #{
                 n1 => #{
                     image => ?braidnode_image,
-                    epmd_port => <<"43591">>,
                     connections => [N2Node]
                 },
                 n2 => #{
                     image => ?braidnode_image,
-                    epmd_port => <<"43592">>,
                     connections => [N1Node]
                 }
             }
@@ -156,7 +150,7 @@ end_per_testcase(_, Config) ->
         _ ->
             LaunchConfig = ?config(launch_config, Config),
             Response = braid_rest:destroy(LaunchConfig#launchConfig.path),
-            ?assertMatch([{_, {202, _}}], Response)
+            ?assertMatch([{_, {204, _}}], Response)
     end.
 
 suite() ->
