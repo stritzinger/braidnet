@@ -190,13 +190,13 @@ store_connections(Node, #{<<"connections">> := Connections}) ->
 
 sign_container_payload(CID, Payload, <<"sha512">>, <<"rsa_pss_rsae">>) ->
     try
-        Binary = base64:decode(Payload),
+        Binary = erlang:binary_to_term(base64:decode(Payload)),
         Key = get_key(CID),
         Opts = [{rsa_padding, rsa_pkcs1_pss_padding},
                 {rsa_pss_saltlen, -1},
                 {rsa_mgf1_md, sha512}],
         Signature = public_key:sign(Binary, sha512, Key, Opts),
-        base64:encode(Signature)
+        base64:encode(erlang:term_to_binary(Signature))
     catch error:E ->
         ?LOG_ERROR("Error signing key: ~p", [E]),
         #{error => E}
