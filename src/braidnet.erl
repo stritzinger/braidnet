@@ -75,7 +75,7 @@ logs(CID) ->
 rpc(CID, M, F, A) ->
     case braidnet_orchestrator:get_ws_pid(CID) of
         undefined ->
-            no_connection;
+            base64:encode("no_connection");
         Pid ->
             Params = #{m => M, f => F, a => A},
             braidnet_braidnode_api:request(Pid, self(), rpc, Params)

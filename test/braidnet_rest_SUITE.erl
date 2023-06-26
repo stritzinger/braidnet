@@ -6,7 +6,8 @@
 
 % Test cases:
 -export([
-    list/1
+    list/1,
+    rpc/1
 ]).
 
 -export([
@@ -24,7 +25,7 @@
 %--- CT Callbacks --------------------------------------------------------------
 
 all() ->
-    [list].
+    [list, rpc].
 
 suite() ->
     [
@@ -57,14 +58,6 @@ init_per_testcase(_, Config) ->
     LaunchConfig = example_config(Config),
     braid_rest:launch(LaunchConfig),
     [{launch_config, LaunchConfig} | Config].
-
-end_per_testcase(braidnet_rest_002, Config) ->
-    case ?config(tc_status, Config) of
-        {failed, _} ->
-            braidnet_test_utils:fly_restart_app();
-        _ ->
-            ok
-    end;
 
 end_per_testcase(_, Config) ->
     case ?config(tc_status, Config) of
@@ -101,6 +94,18 @@ list(Config) ->
     ?assertNotMatch(<<"broken">>, S1),
     ?assertNotMatch(<<"broken">>, S2).
 
+rpc(Config) ->
+    LaunchConfig = proplists:get_value(launch_config, Config),
+    Response = braid_rest:list(LaunchConfig),
+    [Machine| _] = maps:keys(LaunchConfig),
+    [{Machine, {200, Lists}}] = Response,
+    ok = wait_for_running_container(LaunchConfig, 500, 20),
+    [N1_CID]  = [ CID || #{<<"id">> := CID, <<"name">> := N} <- Lists, N == <<"n1">>],
+    {Code, Msg} = braid_rest:rpc(binary_to_list(Machine), binary_to_list(N1_CID), "erlang", "nodes", "[]"),
+    ?assertMatch(200, Code),
+    N2Conn = iolist_to_binary(["[", "n2@", Machine, "]"]),
+    ?assertMatch(N2Conn, Msg).
+
 %--- Helpers -------------------------------------------------------------------
 
 example_config(CtConfig) ->
@@ -121,4 +126,16 @@ example_config(CtConfig) ->
                 }
             }
     }.
->>>>>>> 146455d (simplify test suite)
+wait_for_running_container(_, _, 0) -> timeout;
+wait_for_running_container(LaunchConfig, Interval, Attempts) ->
+    Response = braid_rest:list(LaunchConfig),
+    [Machine] = maps:keys(LaunchConfig),
+    ?assertMatch([{Machine, {200, [#{<<"status">> := _},
+                                   #{<<"status">> := _}]}}], Response),
+    [{_, {_, [#{<<"status">> := S1}, #{<<"status">> := S2}]}}] = Response,
+    case {S1, S2} of
+        {<<"running">>, <<"running">>} -> ok;
+        _ ->
+            ct:sleep(Interval),
+            wait_for_running_container(LaunchConfig, Interval, Attempts - 1)
+    end.
