@@ -16,7 +16,8 @@
          get_ws_pid/1]).
 
 % Internal API
--export([verify/1,
+-export([set_container_supervisor/2,
+        verify/1,
          connect/2,
          disconnect/1,
          log/2,
@@ -31,9 +32,11 @@
 -record(container, {
     node_name           :: binary(),
     ws_pid              :: undefined | pid(),
+    supervisor_pid      :: undefined | pid(),
     image               :: binary(),
     status              :: starting | broken | running | lost,
-    logs = ""           :: string()
+    logs = ""           :: string(),
+    last_down_time      :: erlang:timestamp()
 }).
 
 -record(state, {
@@ -57,6 +60,9 @@ delete(ContainerName) ->
 
 get_ws_pid(CID) ->
     gen_server:call(?MODULE, {?FUNCTION_NAME, CID}).
+
+set_container_supervisor(CID, Sup) ->
+    gen_server:cast(?MODULE, {?FUNCTION_NAME, CID, Sup}).
 
 verify(ContainerID) ->
     gen_server:call(?MODULE, {?FUNCTION_NAME, ContainerID}).
@@ -116,8 +122,10 @@ handle_call({delete, NodeName}, _, #state{containers = CTNs} = S) ->
             (_) -> false
         end, maps:to_list(CTNs)),
     Remaining = case Partition of
-        {[{_, #container{ws_pid = WsPid}}], Rest} when is_pid(WsPid)->
+        {[{_, #container{ws_pid = WsPid,supervisor_pid = SupervisorPid}}], Rest}
+        when is_pid(WsPid) and is_pid(SupervisorPid)->
             braidnet_braidnode_api:notify(WsPid, shutdown),
+            supervisor:delete_child(braidnet_container_pool_sup, SupervisorPid),
             Rest;
         {_, Rest} ->
             Rest
@@ -144,13 +152,15 @@ handle_cast({launch, Name, #{<<"image">> := Image} = Opts},
     CTN = #container{
         node_name = Name,
         image = Image,
-        status = starting
+        status = starting,
+        last_down_time = erlang:timestamp()
     },
     {noreply, S#state{containers = Containers#{CID => CTN}}};
 
 handle_cast({connect, CID, WSPid}, #state{containers = CTNs} = S) ->
-    #{CID := #container{node_name = N} = CTN} = CTNs,
-    ?LOG_NOTICE("Node ~p enstablished WS connection.", [N]),
+    #{CID := #container{node_name = N, last_down_time = LastDownTime} = CTN} = CTNs,
+    StartupTime = timer:now_diff( erlang:timestamp(), LastDownTime) / 1_000_000,
+    ?LOG_NOTICE("Node ~p enstablished WS connection. In ~p seconds", [N, StartupTime]),
     Container = CTN#container{ws_pid = WSPid, status = running},
     NewMap = maps:update(CID, Container, CTNs),
     {noreply, S#state{containers = NewMap}};
@@ -171,7 +181,18 @@ handle_cast({disconnect, CID}, #state{containers = CTNs} = S) ->
         #{CID := #container{node_name = N}} ->
             ?LOG_NOTICE("Node ~p lost connection.", [N]),
             #{CID := CTN} = CTNs,
-            Container = CTN#container{ws_pid = undefined, status = lost},
+            Container = CTN#container{ws_pid = undefined, status = lost, last_down_time = erlang:timestamp()},
+            NewMap = maps:update(CID, Container, CTNs),
+            {noreply,  S#state{containers = NewMap}};
+        _ ->
+            {noreply, S}
+    end;
+
+handle_cast({set_container_supervisor, CID, Sup}, #state{containers = CTNs} = S) ->
+    case CTNs of
+        #{CID := _} ->
+            #{CID := CTN} = CTNs,
+            Container = CTN#container{supervisor_pid = Sup},
             NewMap = maps:update(CID, Container, CTNs),
             {noreply,  S#state{containers = NewMap}};
         _ ->
@@ -215,8 +236,9 @@ async_start_child(Name, CID, Opts) ->
         Result = supervisor:start_child(braidnet_container_pool_sup,
                                         [Name, CID, Opts]),
         _Status = case Result of
-            {ok, _Child} ->
+            {ok, Sup} ->
                 ?LOG_NOTICE("Started node ~p",[Name]),
+                braidnet_orchestrator:set_container_supervisor(CID, Sup),
                 starting;
             {error, {shutdown, {failed_to_start_child, _, E}}} ->
                 ?LOG_NOTICE("Node Start Failure ~p", [E]),
