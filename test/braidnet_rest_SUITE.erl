@@ -60,14 +60,11 @@ init_per_testcase(_, Config) ->
     [{launch_config, LaunchConfig} | Config].
 
 end_per_testcase(_, Config) ->
-    case ?config(tc_status, Config) of
-        {failed, _} ->
-            braidnet_test_utils:fly_restart_app();
-        _ ->
-            LaunchConfig = ?config(launch_config, Config),
-            Response = braid_rest:destroy(LaunchConfig),
-            ?assertMatch([{_, {204, _}}], Response)
-    end.
+    LaunchConfig = ?config(launch_config, Config),
+    Response = braid_rest:destroy(LaunchConfig),
+    ?assertMatch([{_, {204, _}}], Response),
+    % this ensures each later test case has a clean VM
+    braidnet_test_utils:fly_restart_app().
 
 %--- Tests ---------------------------------------------------------------------
 
