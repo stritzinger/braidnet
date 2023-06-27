@@ -35,7 +35,7 @@ jobs:
       - name: Set up flyctl
         uses: superfly/flyctl-actions/setup-flyctl@master
 
-      - name: Scale count
+      - name: Scale up
         run: |
           flyctl scale count 2 -a $APP_NAME --yes
         env:

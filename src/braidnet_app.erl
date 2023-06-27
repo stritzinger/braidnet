@@ -30,6 +30,7 @@ stop(_State) -> ok.
 
 %% internal functions ----------------------------------------------------------
 
+% Note: requests that come in on fly.io, use an internal IP as hostname.
 routes("localhost") ->
     [
         {'_', [
@@ -38,13 +39,13 @@ routes("localhost") ->
             {"/hc", braidnet_healthcheck, []}
         ]}
     ];
-routes(Hostname) ->
+routes(_) ->
     [
-        {Hostname, [
-            {"/api/[:method]", braidnet_braid_rest_api, []},
-            {"/hc", braidnet_healthcheck, []}
-        ]},
         {"localhost", [
             {"/braidnode", braidnet_braidnode_api, []}
+        ]},
+        {'_', [
+            {"/api/[:method]", braidnet_braid_rest_api, []},
+            {"/hc", braidnet_healthcheck, []}
         ]}
     ].
