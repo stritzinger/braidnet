@@ -25,7 +25,7 @@
 %--- CT Callbacks --------------------------------------------------------------
 
 all() ->
-    [list, rpc].
+    [ list, rpc].
 
 suite() ->
     [
@@ -71,7 +71,7 @@ end_per_testcase(_, Config) ->
 
 %--- Tests ---------------------------------------------------------------------
 
-%% Test that listing the running configuration works.
+%% Test that listing works and the config is running.
 list(Config) ->
     LaunchConfig = proplists:get_value(launch_config, Config),
     Response = braid_rest:list(LaunchConfig),
@@ -90,17 +90,14 @@ list(Config) ->
             <<"status">> := _
         }
     ]}}], Response),
-    [{_, {_, [#{<<"status">> := S1}, #{<<"status">> := S2}]}}] = Response,
-    ?assertNotMatch(<<"broken">>, S1),
-    ?assertNotMatch(<<"broken">>, S2).
+    ?assertNotMatch(timeout, wait_for_running_container(LaunchConfig, 2000, 20)),
+    ok.
 
 rpc(Config) ->
     LaunchConfig = proplists:get_value(launch_config, Config),
-    Response = braid_rest:list(LaunchConfig),
     [Machine| _] = maps:keys(LaunchConfig),
-    [{Machine, {200, Lists}}] = Response,
-    ok = wait_for_running_container(LaunchConfig, 500, 20),
-    [N1_CID]  = [ CID || #{<<"id">> := CID, <<"name">> := N} <- Lists, N == <<"n1">>],
+    {ok, L}= wait_for_running_container(LaunchConfig, 2000, 20),
+    [N1_CID]  = [ CID || #{<<"id">> := CID, <<"name">> := N} <- L, N == <<"n1">>],
     {Code, Msg} = braid_rest:rpc(binary_to_list(Machine), binary_to_list(N1_CID), "erlang", "nodes", "[]"),
     ?assertMatch(200, Code),
     N2Conn = iolist_to_binary(["[", "n2@", Machine, "]"]),
@@ -126,16 +123,19 @@ example_config(CtConfig) ->
                 }
             }
     }.
+
 wait_for_running_container(_, _, 0) -> timeout;
 wait_for_running_container(LaunchConfig, Interval, Attempts) ->
+    ct:print("List request ..."),
     Response = braid_rest:list(LaunchConfig),
     [Machine] = maps:keys(LaunchConfig),
     ?assertMatch([{Machine, {200, [#{<<"status">> := _},
                                    #{<<"status">> := _}]}}], Response),
-    [{_, {_, [#{<<"status">> := S1}, #{<<"status">> := S2}]}}] = Response,
+    [{_, {_, [#{<<"status">> := S1}, #{<<"status">> := S2}] = L}}] = Response,
     case {S1, S2} of
-        {<<"running">>, <<"running">>} -> ok;
+        {<<"running">>, <<"running">>} -> {ok, L};
         _ ->
+            ct:print("Containers are : ~p",[L]),
             ct:sleep(Interval),
             wait_for_running_container(LaunchConfig, Interval, Attempts - 1)
     end.
