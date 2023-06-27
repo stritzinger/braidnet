@@ -15,13 +15,8 @@ start(_StartType, _StartArgs) ->
     braidnet_cluster:start(),
     %---
     Port = application:get_env(braidnet, port, 8080),
-    Dispatch = cowboy_router:compile([
-        {'_', [
-            {"/braidnode", braidnet_braidnode_api, []},
-            {"/api/[:method]", braidnet_braid_rest_api, []},
-            {"/hc", braidnet_healthcheck, []}
-        ]}
-    ]),
+    Hostname = application:get_env(braidnet, hostname, "localhost"),
+    Dispatch = cowboy_router:compile(routes(Hostname)),
     {ok, _} = cowboy:start_clear(example, [{port, Port}], #{
         env => #{dispatch => Dispatch}
     }),
@@ -33,4 +28,23 @@ start(_StartType, _StartArgs) ->
 
 stop(_State) -> ok.
 
-%% internal functions
+%% internal functions ----------------------------------------------------------
+
+routes("localhost") ->
+    [
+        {'_', [
+            {"/braidnode", braidnet_braidnode_api, []},
+            {"/api/[:method]", braidnet_braid_rest_api, []},
+            {"/hc", braidnet_healthcheck, []}
+        ]}
+    ];
+routes(Hostname) ->
+    [
+        {Hostname, [
+            {"/api/[:method]", braidnet_braid_rest_api, []},
+            {"/hc", braidnet_healthcheck, []}
+        ]},
+        {"localhost", [
+            {"/braidnode", braidnet_braidnode_api, []}
+        ]}
+    ].
