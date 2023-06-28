@@ -122,10 +122,11 @@ handle_call({delete, NodeName}, _, #state{containers = CTNs} = S) ->
             (_) -> false
         end, maps:to_list(CTNs)),
     Remaining = case Partition of
-        {[{_, #container{ws_pid = WsPid,supervisor_pid = SupervisorPid}}], Rest}
+        {[{_, #container{ws_pid = WsPid, supervisor_pid = SupervisorPid}}], Rest}
         when is_pid(WsPid) and is_pid(SupervisorPid)->
             braidnet_braidnode_api:notify(WsPid, shutdown),
-            supervisor:delete_child(braidnet_container_pool_sup, SupervisorPid),
+            % TODO start here a timer with a grace period
+            % to brutally kill the container if takes too long to shutdown
             Rest;
         {_, Rest} ->
             Rest
@@ -153,13 +154,14 @@ handle_cast({launch, Name, #{<<"image">> := Image} = Opts},
         node_name = Name,
         image = Image,
         status = starting,
-        last_down_time = erlang:timestamp()
+        last_down_time = erlang:monotonic_time()
     },
     {noreply, S#state{containers = Containers#{CID => CTN}}};
 
 handle_cast({connect, CID, WSPid}, #state{containers = CTNs} = S) ->
     #{CID := #container{node_name = N, last_down_time = LastDownTime} = CTN} = CTNs,
-    StartupTime = timer:now_diff( erlang:timestamp(), LastDownTime) / 1_000_000,
+    ElapsedTime = erlang:monotonic_time() - LastDownTime,
+    StartupTime = erlang:convert_time_unit(ElapsedTime, native, second),
     ?LOG_NOTICE("Node ~p enstablished WS connection. In ~p seconds", [N, StartupTime]),
     Container = CTN#container{ws_pid = WSPid, status = running},
     NewMap = maps:update(CID, Container, CTNs),

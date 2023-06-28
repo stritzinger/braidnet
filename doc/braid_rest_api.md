@@ -17,16 +17,14 @@ This is an example of a valid json configuration
             {
                 "alice" => #{
                     image => "namespace/braidnode",
-                    "epmd_port" => "43591",
-                    "connections" => ["bob"]
+                    "connections" => ["bob@5683929b651208"]
                 }
             },
         "5683929b651208" :
             {
                 "bob" : {
                     "image" : <<"namespace/braidnode">>,
-                    "epmd_port" : "43591",
-                    "connections" : ["alice"]
+                    "connections" : ["alice@e28650eeb01e68"]
                 }
             }
     }
@@ -34,11 +32,11 @@ This is an example of a valid json configuration
 ## Methods
 
 <details>
- <summary><code>GET</code> <code><b>/api/list</b></code> - list all containers managed from all instances in the config</summary>
+ <summary><code>GET</code> <code><b>/api/list</b></code> - list all containers managed from the server instance
 
 ##### Parameters
 
-Braid configuration for braidnet in json format.
+none
 
 ##### Responses
 
@@ -89,7 +87,7 @@ Braid configuration for braidnet in json format.
 </details>
 
 <details>
- <summary><code>POST</code> <code><b>/api/launch</b></code> - deploy a new braid configuration</summary>
+ <summary><code>POST</code> <code><b>/api/launch</b></code> - issue deployment of a new braid configuration</summary>
 
 ##### Parameters
 
@@ -97,55 +95,27 @@ Braid configuration for braidnet in json format.
 
 ##### Responses
 
-> | http code     | content-type  |   response                                              |
-> |---------------|--------------|----------
-> | `200`         | `application/json`   | `"ok"`
+> | http code     |   Status
+> |---------------|-------------
+> | `204`         | `No Content`
 
 </details>
 
 <details>
- <summary><code>DELETE</code> <code><b>/api/destroy</b></code> - removes all containers given a braidnet configurationr</summary>
+ <summary><code>DELETE</code> <code><b>/api/destroy</b></code> - removes all containers given a braidnet configuration</summary>
 
 This issues an ordered shutdown while deleting all internal data about the container.
 
-##### Responses
-
-> | http code     | content-type  |   response                                              |
-> |---------------|--------------|----------
-> | `200`         | `application/json`   | `"ok"`
-
-</details>
-
-## WIP
-
-<details>
- <summary><code>POST</code> <code><b>/api/pause</b></code> - stops a list of containers</summary>
-
 ##### Parameters
 
-    [container_a, container_b]
-
-
-##### Responses
-
-> | http code     | content-type  |   response                                              |
-> |---------------|--------------|----------
-> | `200`         | `application/json`   | `"ok"`
-
-</details>
-
-<details>
- <summary><code>POST</code> <code><b>/api/unpause</b></code> - resumes execution of a list of containers</summary>
-
-##### Parameters
-
-    [container_a, container_b]
-
+Braid configuration for braidnet in json format.
 
 ##### Responses
 
-> | http code     | content-type  |   response                                              |
-> |---------------|--------------|----------
-> | `200`         | `application/json`   | `"ok"`
+> | http code     |   Status
+> |---------------|-------------
+> | `204`         | `No Content`
 
 </details>
+
+

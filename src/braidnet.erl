@@ -11,8 +11,6 @@
 -export([logs/1]).
 -export([rpc/4]).
 -export([remove_configuration/1]).
--export([pause/1]).
--export([unpause/1]).
 
 -include_lib("kernel/include/logger.hrl").
 
@@ -86,11 +84,5 @@ remove_configuration(NodesMap) ->
     ToBeDestroyed = maps:get(ThisHost, NodesMap, #{}),
     Names = [Name || {Name, _} <- maps:to_list(ToBeDestroyed)],
     lists:foreach(fun braidnet_orchestrator:delete/1, Names).
-
-pause(_Containers) ->
-    ok.
-
-unpause(_Containers) ->
-    ok.
 
 % Internal ---------------------------------------------------------------------

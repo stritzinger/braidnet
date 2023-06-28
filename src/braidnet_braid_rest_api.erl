@@ -33,41 +33,40 @@ is_authorized(Req, State) ->
         {{false, <<"Bearer">>}, Req, State}
     end.
 
-malformed_request(#{path := Path, qs := Qs} = Req, State) ->
-    Method = filename:basename(Path),
-    case Method of
-        <<"list">> -> {false, Req, State};
-        <<"logs">> ->
-            case check_qs_keys([<<"cid">>], Qs) of
-                false -> {true, Req, State};
-                true -> {false, Req, State}
-            end;
-        <<"rpc">> ->
-            Keys = [<<"cid">>, <<"m">>, <<"f">>, <<"args">>],
-            case check_qs_keys(Keys, Qs) of
-                false -> {true, Req, State};
-                true -> {false, Req, State}
-            end;
-        _ ->
-            case check_config(Req) of
-                {ok, Cfg} -> {false, Req, Cfg};
-                error -> {true, Req, State}
-            end
+-define(base_path, "/api/").
+
+malformed_request(#{path := <<?base_path, "list">>} = Req, S) ->
+    {false, Req, S};
+malformed_request(#{path := <<?base_path, "logs">>, qs := Qs} = Req, S) ->
+    case qs_keys_exist([<<"cid">>], Qs) of
+        false -> {true, Req, S};
+        true -> {false, Req, S}
+    end;
+malformed_request(#{path := <<?base_path, "rpc">>, qs := Qs} = Req, S) ->
+    Keys = [<<"cid">>, <<"m">>, <<"f">>, <<"args">>],
+    case qs_keys_exist(Keys, Qs) of
+        false -> {true, Req, S};
+        true -> {false, Req, S}
+    end;
+malformed_request(#{path := _} = Req, S) ->
+    case check_config(Req) of
+        {ok, Cfg} -> {false, Req, Cfg};
+        error -> {true, Req, S}
     end.
 
-resource_exists(#{path := Path, qs := Qs} = Req, State) ->
-    Method = filename:basename(Path),
-    case Method of
-        M when M == <<"logs">> orelse M == <<"rpc">> ->
-            CID = get_qs_entry(<<"cid">>, Qs),
-            case braidnet_orchestrator:verify(CID) of
-                ok -> {true, Req, State};
-                {error, _} -> {false, Req, State}
-            end;
-        <<"list">> -> {true, Req, State};
-        <<"destroy">> -> {true, Req, State};
-        _ -> {false, Req, State}
-    end.
+resource_exists(#{path := <<?base_path, M/binary>>, qs := Qs} = Req, State)
+when M == <<"logs">> orelse M == <<"rpc">> ->
+    CID = get_qs_entry(<<"cid">>, Qs),
+    case braidnet_orchestrator:verify(CID) of
+        ok -> {true, Req, State};
+        {error, _} -> {false, Req, State}
+    end;
+resource_exists(#{path := <<?base_path, "list">>} = Req, State) ->
+    {true, Req, State};
+resource_exists(#{path := <<?base_path, "destroy">>} = Req, State) ->
+    {true, Req, State};
+resource_exists(#{path := _} = Req, State) ->
+    {false, Req, State}.
 
 content_types_provided(Req, State) ->
     {[{<<"application/json">>, to_json}], Req, State}.
@@ -104,9 +103,13 @@ json_decode(Msg) -> jiffy:decode(Msg, [return_maps]).
 
 json_encode(Msg) -> jiffy:encode(Msg).
 
-check_qs_keys(Entries, Qs) ->
-    lists:all(fun(undefined) -> false; (_) -> true end,
-              [get_qs_entry(K, Qs)  || K <- Entries]).
+qs_keys_exist(Entries, Req) ->
+    try
+        cowboy_req:match_qs([{K, [nonempty]} || K <- Entries], Req),
+        true
+    catch _:_ ->
+        false
+    end.
 
 get_qs_entry(Key, Qs) ->
     proplists:get_value(Key, uri_string:dissect_query(Qs)).

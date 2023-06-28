@@ -76,7 +76,7 @@ websocket_handle(Frame = {binary, Binary}, #state{cid = CID} = State) ->
                             {false, false} -> % this is a request
                                 {[{binary, handle_request(CID, Map)}], State};
                             {_, _} -> % this is a responce
-                                {ok, handle_responce(Map, State)}
+                                {ok, handle_response(Map, State)}
                         end;
                     false -> % notification
                         handle_request(CID, Map),
@@ -160,7 +160,7 @@ jsonrpc_object(Type, Method, Params) ->
             jiffy:encode(Map2)
     end.
 
-handle_responce(#{<<"id">> := ID} = Map,
+handle_response(#{<<"id">> := ID} = Map,
                 #state{pending_requests = Preqs} = S) ->
     #{ID := Caller} = Preqs,
     Msg = case Map of
