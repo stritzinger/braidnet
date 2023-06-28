@@ -21,11 +21,10 @@ start_link() ->
 %%                  type => worker(),       % optional
 %%                  modules => modules()}   % optional
 init([]) ->
-    SupFlags = #{strategy => simple_one_for_one},
-    ChildSpecs = [
-        #{id => braidnet_container_sup,
-          start => {braidnet_container_sup, start_link, []},
-          type => supervisor,
-          restart => temporary}
-    ],
+    SupFlags = #{
+        strategy => one_for_one,
+        intensity => 1,
+        period => 10
+    },
+    ChildSpecs = [],
     {ok, {SupFlags, ChildSpecs}}.

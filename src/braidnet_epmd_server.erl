@@ -17,6 +17,7 @@
     names/2
 ]).
 
+-export([reserve_port/1]).
 -export([store_connections/2]).
 
 -include_lib("kernel/include/logger.hrl").
@@ -28,9 +29,13 @@
 -type nodehost()     :: binary().
 % A node() in binary format:
 -type nodenamehost() :: binary().
-
+%-------------------------------------------------------------------------------
+% We use this port range, realistically we will never spawn so many containers
+-define(PORTS_RANGE, {50_000, 60_000}).
 %-------------------------------------------------------------------------------
 -record(state, {
+    %Map storing tcp port numbers reservations
+    ports_in_use = #{}:: #{pid() := non_neg_integer()},
     % Map storing the distribution listen ports of local nodes:
     nodes = #{}       :: #{nodename() := port()},
     % Map storing which nodes a given local node should be able to connect to:
@@ -38,6 +43,13 @@
 }).
 
 %-------------------------------------------------------------------------------
+% Chooses an available port and reserves it for the calling process.
+-spec reserve_port(Pid) -> Result when
+    Pid :: pid(),
+    Result :: {ok, Port :: non_neg_integer()} | {error, unavailable}.
+reserve_port(Pid) ->
+    gen_server:call(?MODULE, {?FUNCTION_NAME, Pid}).
+
 % Store which other Braidnodes a given Braidnode should be able to connect to.
 % We'll send this list to the node when it registers with this module.
 -spec store_connections(Node, Connections) -> Result when
@@ -95,6 +107,16 @@ start_link() ->
 init(_) ->
     {ok, #state{}}.
 
+handle_call({reserve_port, Pid}, _, #state{ports_in_use = Ports} = S) ->
+    case gen_new_port_n(maps:values(Ports)) of
+        {ok, N} ->
+            erlang:monitor(process, Pid),
+            NewP = maps:put(Pid, N, S#state.ports_in_use),
+            {reply, {ok, N}, S#state{ports_in_use = NewP}};
+        {error, E} ->
+            {reply, {error, E}, S}
+    end;
+
 handle_call({store_connections, Node, NodeConns}, _, State) ->
     NewConns = maps:put(Node, NodeConns, State#state.connections),
     {reply, ok, State#state{connections = NewConns}};
@@ -130,6 +152,11 @@ handle_cast(Msg, S) ->
     ?LOG_ERROR("Unexpected cast msg: ~p",[Msg]),
     {noreply, S}.
 
+handle_info({'DOWN', _MonitorRef, process, Pid, _Info},
+            #state{ports_in_use = Ports} = S) ->
+    #{Pid := Port}  = Ports,
+    ?LOG_DEBUG("EPMD server deleting reservation of ~p for port ~p.", [Pid, Port]),
+    {noreply, S#state{ports_in_use = maps:remove(Pid, Ports)}};
 handle_info(Msg, S) ->
     ?LOG_ERROR("Unexpected info msg: ~p",[Msg]),
     {noreply, S}.
@@ -162,3 +189,17 @@ node_ip_and_port(Name, Host, NodeMap) ->
 braidnet_node_on_host(Host) ->
     NodeName = braidnet_cluster:this_nodename(),
     erlang:binary_to_atom(<<NodeName/binary, "@", Host/binary>>).
+
+% We do not actually check which ports are in use on the OS.
+% Here we assume we are the only process that opens new ports.
+gen_new_port_n(TakenPorts) ->
+    {First, Last} = ?PORTS_RANGE,
+    first_not_in_set(First, sets:from_list(TakenPorts), Last).
+
+first_not_in_set(N, _, Max) when N > Max ->
+    {error, unavailable};
+first_not_in_set(N, Set, Max) ->
+    case sets:is_element(N, Set) of
+        true -> first_not_in_set(N + 1, Set, Max);
+        false -> {ok, N}
+    end.

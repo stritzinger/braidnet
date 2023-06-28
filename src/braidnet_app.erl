@@ -15,13 +15,8 @@ start(_StartType, _StartArgs) ->
     braidnet_cluster:start(),
     %---
     Port = application:get_env(braidnet, port, 8080),
-    Dispatch = cowboy_router:compile([
-        {'_', [
-            {"/braidnode", braidnet_braidnode_api, []},
-            {"/api/[:method]", braidnet_braid_rest_api, []},
-            {"/hc", braidnet_healthcheck, []}
-        ]}
-    ]),
+    Hostname = application:get_env(braidnet, hostname, "localhost"),
+    Dispatch = cowboy_router:compile(routes(Hostname)),
     {ok, _} = cowboy:start_clear(example, [{port, Port}], #{
         env => #{dispatch => Dispatch}
     }),
@@ -33,4 +28,24 @@ start(_StartType, _StartArgs) ->
 
 stop(_State) -> ok.
 
-%% internal functions
+%% internal functions ----------------------------------------------------------
+
+% Note: requests that come in on fly.io, use an internal IP as hostname.
+routes("localhost") ->
+    [
+        {'_', [
+            {"/braidnode", braidnet_braidnode_api, []},
+            {"/api/[:method]", braidnet_braid_rest_api, []},
+            {"/hc", braidnet_healthcheck, []}
+        ]}
+    ];
+routes(_) ->
+    [
+        {"localhost", [
+            {"/braidnode", braidnet_braidnode_api, []}
+        ]},
+        {'_', [
+            {"/api/[:method]", braidnet_braid_rest_api, []},
+            {"/hc", braidnet_healthcheck, []}
+        ]}
+    ].

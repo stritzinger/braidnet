@@ -5,6 +5,9 @@
 -export([notify/2]).
 -export([notify/3]).
 
+-export([request/3]).
+-export([request/4]).
+
 -behaviour(cowboy_websocket).
 
 -export([init/2]).
@@ -15,7 +18,10 @@
 
 -include_lib("kernel/include/logger.hrl").
 
--record(state, {cid}).
+-record(state, {
+    cid,
+    pending_requests = #{}% outgoing requests to braidnode
+}).
 
 
 
@@ -24,6 +30,14 @@ notify(Pid, Method) ->
 
 notify(Pid, Method, Params) ->
     Pid ! {notify, Method, Params}.
+
+request(Pid, Caller, Method) ->
+    request(Pid, Caller, Method, undefined).
+
+request(Pid, Caller, Method, Params) ->
+    Pid ! {request, Caller, Method, Params},
+    receive {Pid, Msg} -> Caller ! Msg end.
+
 
 %--- WS Callbacks --------------------------------------------------------------
 init(Req, State) ->
@@ -49,15 +63,23 @@ websocket_init(#state{cid = CID} = S) ->
     {[], S}.
 
 websocket_handle(Frame = {binary, Binary}, #state{cid = CID} = State) ->
+    % TODO Refactor using proper jsonRPC handling
     try
         Map = jiffy:decode(Binary, [return_maps]),
         case maps:is_key(<<"jsonrpc">>, Map) of
             true ->
                 case maps:is_key(<<"id">>, Map) of
-                    true ->  % reply to request
-                        {[{binary, handle_jsonrpc(CID, Map)}], State};
+                    true ->
+                        {Res, Err} = {maps:is_key(<<"result">>, Map),
+                                      maps:is_key(<<"error">>, Map)},
+                        case {Res, Err} of
+                            {false, false} -> % this is a request
+                                {[{binary, handle_request(CID, Map)}], State};
+                            {_, _} -> % this is a responce
+                                {ok, handle_response(Map, State)}
+                        end;
                     false -> % notification
-                        handle_jsonrpc(CID, Map),
+                        handle_request(CID, Map),
                         {ok, State}
                 end
         end
@@ -74,6 +96,9 @@ websocket_handle(_Frame, State) ->
 websocket_info({notify, Method, Params}, State) ->
     JsonRPC = jsonrpc_object(notification, Method, Params),
     {[{binary, JsonRPC}], State};
+websocket_info({request, Caller, Method, Params}, #state{pending_requests = Map} = S) ->
+    {ID, JsonRPC} = jsonrpc_object(request, Method, Params),
+    {[{binary, JsonRPC}], S#state{pending_requests = Map#{ID => Caller}}};
 websocket_info(Info, State) ->
     ?LOG_WARNING("Unexpected info: ~p", [Info]),
     {ok, State}.
@@ -82,7 +107,7 @@ terminate(Reason, _, #state{cid = CID}) ->
     ?LOG_DEBUG("WS terminated ~p",[Reason]),
     braidnet_orchestrator:disconnect(CID).
 
-handle_jsonrpc(CID, #{<<"method">> := Method,
+handle_request(CID, #{<<"method">> := Method,
                     <<"id">> := Id,
                     <<"params">> := Params}) ->
     Response = case Method of
@@ -102,7 +127,7 @@ handle_jsonrpc(CID, #{<<"method">> := Method,
             braidnet_orchestrator:sign(CID, Payload, HashAlg, SignAlg)
     end,
     jsonrpc_response_object(Id, Response);
-handle_jsonrpc(_CID, #{<<"method">> := Method, <<"params">> := _Params}) ->
+handle_request(_CID, #{<<"method">> := Method, <<"params">> := _Params}) ->
     case Method of
         _ -> unhandled
     end.
@@ -134,3 +159,13 @@ jsonrpc_object(Type, Method, Params) ->
         notification ->
             jiffy:encode(Map2)
     end.
+
+handle_response(#{<<"id">> := ID} = Map,
+                #state{pending_requests = Preqs} = S) ->
+    #{ID := Caller} = Preqs,
+    Msg = case Map of
+        #{<<"error">> := E} -> E;
+        #{<<"result">> := R} -> R
+    end,
+    Caller ! {self(), Msg},
+    S#state{pending_requests = maps:remove(ID, Preqs)}.

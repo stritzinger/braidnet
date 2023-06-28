@@ -6,9 +6,8 @@
 
 % Test cases:
 -export([
-    braidnet_rest_001/1,
-    braidnet_rest_002/1,
-    braidnet_rest_003/1
+    list/1,
+    rpc/1
 ]).
 
 -export([
@@ -20,97 +19,21 @@
     end_per_testcase/2
 ]).
 
--record(launchConfig, {
-    map, % The configuration itself, as a map
-    path % Path to the file containing the above map
-}).
+-define(braidnode_image, <<"ziopio/braidnode:testing">>).
 
--define(braidnode_image, <<"ntshtng/braidnode:testing">>).
-
-%--- Tests ---------------------------------------------------------------------
-%% Test that Braidnet can accept and process a launch request.
-braidnet_rest_001(Config) ->
-    LaunchConfig = ?config(launch_config, Config),
-    Response = braid_rest:launch(LaunchConfig#launchConfig.path),
-    ?assertMatch([{_, {202, _}}], Response).
-
-%% Test that Braidnet can accept and process a removal request.
-braidnet_rest_002(Config) ->
-    LaunchConfig = ?config(launch_config, Config),
-    Response = braid_rest:destroy(LaunchConfig#launchConfig.path),
-    ?assertMatch([{_, {202, _}}], Response).
-
-%% Test that listing the running configuration works.
-braidnet_rest_003(Config) ->
-    LaunchConfig = proplists:get_value(launch_config, Config),
-    Response = braid_rest:list(LaunchConfig#launchConfig.path),
-    [Machine] = maps:keys(LaunchConfig#launchConfig.map),
-    MachineBin = erlang:atom_to_binary(Machine),
-    ?assertMatch([{MachineBin, {200, [
-        #{
-            <<"id">> := _,
-            <<"image">> := _,
-            <<"name">> := _,
-            <<"status">> := _
-        },
-        #{
-            <<"id">> := _,
-            <<"image">> := _,
-            <<"name">> := _,
-            <<"status">> := _
-        }
-    ]}}], Response),
-    [{_, {_, [#{<<"status">> := S1}, #{<<"status">> := S2}]}}] = Response,
-    ?assertNotMatch(<<"broken">>, S1),
-    ?assertNotMatch(<<"broken">>, S2).
-
-%--- Helpers -------------------------------------------------------------------
-% Writes a launch configuration to file,
-% to be used through the braidnet_rest module.
-% Returns the file path and the configuration too as a #launchConfig{}.
-write_launch_config(Id, CtConfig) ->
-    PrivDir = ?config(priv_dir, CtConfig),
-    Machines = ?config(machines, CtConfig),
-    ConfigMap = example_config(Id, Machines),
-    ConfigPath = filename:join(PrivDir, "launch.conf"),
-    ok = file:write_file(ConfigPath, io_lib:format("~p.~n", [ConfigMap])),
-    #launchConfig{map = ConfigMap, path = ConfigPath}.
-
-example_config(1, [Machine1 | _]) ->
-    % A configuration with one node on one machine, no connections
-    MachineAtom = erlang:binary_to_atom(Machine1),
-    #{
-        MachineAtom =>
-            #{
-                n1 => #{
-                    image => ?braidnode_image,
-                    epmd_port => <<"43591">>,
-                    connections => []
-                }
-            }
-    };
-example_config(2, [Machine1 | _]) ->
-    % A configuration with two nodes on one machine, connected.
-    MachineAtom = erlang:binary_to_atom(Machine1),
-    N1Node = erlang:binary_to_atom(<<"n1@", Machine1/binary>>),
-    N2Node = erlang:binary_to_atom(<<"n2@", Machine1/binary>>),
-    #{
-        MachineAtom =>
-            #{
-                n1 => #{
-                    image => ?braidnode_image,
-                    epmd_port => <<"43591">>,
-                    connections => [N2Node]
-                },
-                n2 => #{
-                    image => ?braidnode_image,
-                    epmd_port => <<"43592">>,
-                    connections => [N1Node]
-                }
-            }
-    }.
 
 %--- CT Callbacks --------------------------------------------------------------
+
+all() ->
+    [ list, rpc].
+
+suite() ->
+    [
+        {timetrap, {minutes, 2}},
+        % Only run if the entry 'braid' is present in the test.config file:
+        {require, braid}
+    ].
+
 init_per_suite(Config) ->
     %--- Configure Braid
     AccessToken = os:getenv("BRAIDNET_ACCESS_TOKEN"),
@@ -131,44 +54,85 @@ init_per_suite(Config) ->
 end_per_suite(Config) ->
     Config.
 
-init_per_testcase(braidnet_rest_003, Config) ->
-    LaunchConfig = write_launch_config(2, Config),
-    braid_rest:launch(LaunchConfig#launchConfig.path),
-    [{launch_config, LaunchConfig} | Config];
-
 init_per_testcase(_, Config) ->
-    LaunchConfig = write_launch_config(1, Config),
-    braid_rest:launch(LaunchConfig#launchConfig.path),
+    LaunchConfig = example_config(Config),
+    braid_rest:launch(LaunchConfig),
     [{launch_config, LaunchConfig} | Config].
 
-end_per_testcase(braidnet_rest_002, Config) ->
-    case ?config(tc_status, Config) of
-        {failed, _} ->
-            braidnet_test_utils:fly_restart_app();
-        _ ->
-            ok
-    end;
-
 end_per_testcase(_, Config) ->
-    case ?config(tc_status, Config) of
-        {failed, _} ->
-            braidnet_test_utils:fly_restart_app();
+    LaunchConfig = ?config(launch_config, Config),
+    Response = braid_rest:destroy(LaunchConfig),
+    ?assertMatch([{_, {204, _}}], Response),
+    % this ensures each later test case has a clean VM
+    braidnet_test_utils:fly_restart_app().
+
+%--- Tests ---------------------------------------------------------------------
+
+%% Test that listing works and the config is running.
+list(Config) ->
+    LaunchConfig = proplists:get_value(launch_config, Config),
+    Response = braid_rest:list(LaunchConfig),
+    [Machine| _] = maps:keys(LaunchConfig),
+    ?assertMatch([{Machine, {200, [
+        #{
+            <<"id">> := _,
+            <<"image">> := _,
+            <<"name">> := _,
+            <<"status">> := _
+        },
+        #{
+            <<"id">> := _,
+            <<"image">> := _,
+            <<"name">> := _,
+            <<"status">> := _
+        }
+    ]}}], Response),
+    ?assertNotMatch(timeout, wait_for_running_container(LaunchConfig, 2000, 20)),
+    ok.
+
+rpc(Config) ->
+    LaunchConfig = proplists:get_value(launch_config, Config),
+    [Machine| _] = maps:keys(LaunchConfig),
+    {ok, L}= wait_for_running_container(LaunchConfig, 2000, 20),
+    [N1_CID]  = [ CID || #{<<"id">> := CID, <<"name">> := N} <- L, N == <<"n1">>],
+    {Code, Msg} = braid_rest:rpc(binary_to_list(Machine), binary_to_list(N1_CID), "erlang", "nodes", "[]"),
+    ?assertMatch(200, Code),
+    N2Conn = iolist_to_binary(["[", "n2@", Machine, "]"]),
+    ?assertMatch(N2Conn, Msg).
+
+%--- Helpers -------------------------------------------------------------------
+
+example_config(CtConfig) ->
+    [Machine1 | _] = ?config(machines, CtConfig),
+    % A configuration with two nodes on one machine, connected.
+    N1Node = erlang:binary_to_atom(<<"n1@", Machine1/binary>>),
+    N2Node = erlang:binary_to_atom(<<"n2@", Machine1/binary>>),
+    #{
+        Machine1 =>
+            #{
+                n1 => #{
+                    image => ?braidnode_image,
+                    connections => [N2Node]
+                },
+                n2 => #{
+                    image => ?braidnode_image,
+                    connections => [N1Node]
+                }
+            }
+    }.
+
+wait_for_running_container(_, _, 0) -> timeout;
+wait_for_running_container(LaunchConfig, Interval, Attempts) ->
+    ct:print("List request ..."),
+    Response = braid_rest:list(LaunchConfig),
+    [Machine] = maps:keys(LaunchConfig),
+    ?assertMatch([{Machine, {200, [#{<<"status">> := _},
+                                   #{<<"status">> := _}]}}], Response),
+    [{_, {_, [#{<<"status">> := S1}, #{<<"status">> := S2}] = L}}] = Response,
+    case {S1, S2} of
+        {<<"running">>, <<"running">>} -> {ok, L};
         _ ->
-            LaunchConfig = ?config(launch_config, Config),
-            Response = braid_rest:destroy(LaunchConfig#launchConfig.path),
-            ?assertMatch([{_, {202, _}}], Response)
+            ct:print("Containers are : ~p",[L]),
+            ct:sleep(Interval),
+            wait_for_running_container(LaunchConfig, Interval, Attempts - 1)
     end.
-
-suite() ->
-    [
-        {timetrap, {minutes, 2}},
-        % Only run if the entry 'braid' is present in the test.config file:
-        {require, braid}
-    ].
-
-all() ->
-    [
-        braidnet_rest_001,
-        braidnet_rest_002
-        % braidnet_rest_003
-    ].

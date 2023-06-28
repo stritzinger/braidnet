@@ -28,8 +28,7 @@ delete_braidnode_certfiles(CID) ->
 
 new_braidnode_cert(CID) ->
     CertDir = cert_dir_path(CID),
-    ok = filelib:ensure_dir(CertDir),
-    ok = file:make_dir(CertDir),
+    ok = filelib:ensure_path(CertDir),
     %---
     {ok, CertContents} = request_certificate(CID),
     %---

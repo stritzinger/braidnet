@@ -9,13 +9,13 @@
 -export([launch_configuration/1]).
 -export([list/0]).
 -export([logs/1]).
+-export([rpc/4]).
 -export([remove_configuration/1]).
--export([pause/1]).
--export([unpause/1]).
 
 -include_lib("kernel/include/logger.hrl").
 
 % dev api ----------------------------------------------------------------------
+
 test_node() ->
     ThisHost = braidnet_cluster:this_nodehost(),
     NodeMap = #{
@@ -70,16 +70,19 @@ list() ->
 logs(CID) ->
     braidnet_orchestrator:logs(CID).
 
+rpc(CID, M, F, A) ->
+    case braidnet_orchestrator:get_ws_pid(CID) of
+        undefined ->
+            base64:encode("no_connection");
+        Pid ->
+            Params = #{m => M, f => F, a => A},
+            braidnet_braidnode_api:request(Pid, self(), rpc, Params)
+    end.
+
 remove_configuration(NodesMap) ->
     ThisHost = braidnet_cluster:this_nodehost(),
     ToBeDestroyed = maps:get(ThisHost, NodesMap, #{}),
     Names = [Name || {Name, _} <- maps:to_list(ToBeDestroyed)],
     lists:foreach(fun braidnet_orchestrator:delete/1, Names).
-
-pause(_Containers) ->
-    ok.
-
-unpause(_Containers) ->
-    ok.
 
 % Internal ---------------------------------------------------------------------

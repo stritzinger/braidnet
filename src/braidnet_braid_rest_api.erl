@@ -33,35 +33,38 @@ is_authorized(Req, State) ->
         {{false, <<"Bearer">>}, Req, State}
     end.
 
-malformed_request(#{path := Path, qs := Qs} = Req, State) ->
-    Method = filename:basename(Path),
-    case Method of
-        <<"list">> -> {false, Req, State};
-        <<"logs">> ->
-            case get_qs_entry(<<"cid">>, Qs) of
-                undefined -> {true, Req, State};
-                _CID -> {false, Req, State}
-            end;
-        _ ->
-            case check_config(Req) of
-                {ok, Cfg} -> {false, Req, Cfg};
-                error -> {true, Req, State}
-            end
+malformed_request(#{bindings := #{method := <<"list">>}} = Req, S) ->
+    {false, Req, S};
+malformed_request(#{bindings := #{method := <<"logs">>}} = Req, S) ->
+    case qs_keys_exist([cid], Req) of
+        false -> {true, Req, S};
+        true -> {false, Req, S}
+    end;
+malformed_request(#{bindings := #{method := <<"rpc">>}}= Req, S) ->
+    Keys = [cid, m, f, args],
+    case qs_keys_exist(Keys, Req) of
+        false -> {true, Req, S};
+        true -> {false, Req, S}
+    end;
+malformed_request(Req, S) ->
+    case check_config(Req) of
+        {ok, Cfg} -> {false, Req, Cfg};
+        error -> {true, Req, S}
     end.
 
-resource_exists(#{path := Path, qs := Qs} = Req, State) ->
-    Method = filename:basename(Path),
-    case Method of
-        <<"logs">> ->
-            CID = get_qs_entry(<<"cid">>, Qs),
-            case braidnet_orchestrator:verify(CID) of
-                ok -> {true, Req, State};
-                {error, _} -> {false, Req, State}
-            end;
-        <<"list">> -> {true, Req, State};
-        <<"destroy">> -> {true, Req, State};
-        _ -> {false, Req, State}
-    end.
+resource_exists(#{bindings := #{method := M}, qs := Qs} = Req, State)
+when M == <<"logs">> orelse M == <<"rpc">> ->
+    CID = get_qs_entry(<<"cid">>, Qs),
+    case braidnet_orchestrator:verify(CID) of
+        ok -> {true, Req, State};
+        {error, _} -> {false, Req, State}
+    end;
+resource_exists(#{bindings := #{method := <<"list">>}} = Req, State) ->
+    {true, Req, State};
+resource_exists(#{bindings := #{method := <<"destroy">>}} = Req, State) ->
+    {true, Req, State};
+resource_exists(Req, State) ->
+    {false, Req, State}.
 
 content_types_provided(Req, State) ->
     {[{<<"application/json">>, to_json}], Req, State}.
@@ -69,10 +72,9 @@ content_types_provided(Req, State) ->
 content_types_accepted(Req, State) ->
     {[{<<"application/json">>, from_json}], Req, State}.
 
-delete_resource(#{bindings := #{method := <<"destroy">>}} = Req0, BraidCfg = S) ->
+delete_resource(#{bindings := #{method := <<"destroy">>}} = Req, BraidCfg = S) ->
     braidnet:remove_configuration(BraidCfg),
-    Req1 = cowboy_req:reply(202, Req0),
-    {true, Req1, S}.
+    {true, Req, S}.
 
 to_json(#{bindings := #{method := <<"list">>}} = Req, S) ->
     Result = braidnet:list(),
@@ -80,18 +82,32 @@ to_json(#{bindings := #{method := <<"list">>}} = Req, S) ->
 to_json(#{bindings := #{method := <<"logs">>}, qs := Qs} = Req, S) ->
     CID = get_qs_entry(<<"cid">>, Qs),
     Result = braidnet:logs(CID),
+    {json_encode(Result), Req, S};
+to_json(#{bindings := #{method := <<"rpc">>}, qs := Qs} = Req, S) ->
+    CID = get_qs_entry(<<"cid">>, Qs),
+    M = get_qs_entry(<<"m">>, Qs),
+    F = get_qs_entry(<<"f">>, Qs),
+    A = get_qs_entry(<<"args">>, Qs),
+    Result = braidnet:rpc(CID, M, F, A),
     {json_encode(Result), Req, S}.
 
-from_json(#{bindings := #{method := <<"launch">>}} = Req0, BraidCfg = S) ->
+from_json(#{bindings := #{method := <<"launch">>}} = Req, BraidCfg = S) ->
     braidnet:launch_configuration(BraidCfg),
-    Req1 = cowboy_req:reply(202, Req0),
-    {true, Req1, S}.
+    {true, Req, S}.
 
 % INTERNALS --------------------------------------------------------------------
 
 json_decode(Msg) -> jiffy:decode(Msg, [return_maps]).
 
 json_encode(Msg) -> jiffy:encode(Msg).
+
+qs_keys_exist(Entries, Req) ->
+    try
+        cowboy_req:match_qs([{K, [nonempty]} || K <- Entries], Req),
+        true
+    catch _:_ ->
+        false
+    end.
 
 get_qs_entry(Key, Qs) ->
     proplists:get_value(Key, uri_string:dissect_query(Qs)).

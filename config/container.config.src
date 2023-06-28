@@ -1,5 +1,6 @@
 [
   {braidnet, [
+    {hostname, "${ORIGIN}"},
     {rest_api_token, <<"${AUTH_TOKEN}">>},
     {braidcert_url, "https://braidcert.fly.dev/csr/"},
     {braidcert_key, "${BRAIDCERT_KEY}"}

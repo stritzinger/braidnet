@@ -21,12 +21,19 @@ start_link(Name, CID, Opts) ->
 
 init([Name, CID, #{<<"image">> := DockerImage} = Opts]) ->
     Docker = os:find_executable("docker"),
-    case check_image_signature(Docker, DockerImage) of
-        ok ->
-            {ok, #state{cid = CID, port = docker_run(Docker, Name, CID, Opts)}};
-        {error, E} ->
+    SignCheck = check_image_signature(Docker, DockerImage),
+    PortReservation = braidnet_epmd_server:reserve_port(self()),
+    case {SignCheck, PortReservation} of
+        {ok, {ok, N}} ->
+            {ok, #state{cid = CID,
+                        port = docker_run(Docker, Name, CID, DockerImage, N)}};
+        {{error, E}, _} ->
             ?LOG_WARNING("Rejecting unsigned image: ~p for: ~p",[DockerImage, E]),
             braidnet_orchestrator:log(CID, "brainet: docker image has no trust data"),
+            {stop, E};
+        {_, {error, E}} ->
+            ?LOG_WARNING("Error reserving port: ~p",[E]),
+            braidnet_orchestrator:log(CID, "brainet: could not reserve port for container"),
             {stop, E}
     end.
 
@@ -74,8 +81,7 @@ check_image_signature(Docker, DockerImage) ->
             ok
     end.
 
-docker_run(Docker, Name, CID,
-           #{<<"image">> := DockerImage, <<"epmd_port">> := Port}) ->
+docker_run(Docker, Name, CID, DockerImage, PortNumber) ->
     NodeHost = braidnet_cluster:this_nodehost(),
     StringCID = binary_to_list(CID),
     CA = braidnet_cert:get_ca_file(),
@@ -89,7 +95,7 @@ docker_run(Docker, Name, CID,
             "--env", "CID=" ++ StringCID,
             "--env", "NODE_NAME=" ++ binary_to_list(Name),
             "--env", "NODE_HOST=" ++ binary_to_list(NodeHost),
-            "--env", "BRD_EPMD_PORT=" ++ binary_to_list(Port),
+            "--env", "BRD_EPMD_PORT=" ++ integer_to_list(PortNumber),
             "--hostname", binary_to_list(NodeHost),
             "--network", "host",
             binary_to_list(DockerImage)
