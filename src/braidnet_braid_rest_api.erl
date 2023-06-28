@@ -37,14 +37,14 @@ is_authorized(Req, State) ->
 
 malformed_request(#{path := <<?base_path, "list">>} = Req, S) ->
     {false, Req, S};
-malformed_request(#{path := <<?base_path, "logs">>, qs := Qs} = Req, S) ->
-    case qs_keys_exist([<<"cid">>], Qs) of
+malformed_request(#{path := <<?base_path, "logs">>} = Req, S) ->
+    case qs_keys_exist([cid], Req) of
         false -> {true, Req, S};
         true -> {false, Req, S}
     end;
-malformed_request(#{path := <<?base_path, "rpc">>, qs := Qs} = Req, S) ->
-    Keys = [<<"cid">>, <<"m">>, <<"f">>, <<"args">>],
-    case qs_keys_exist(Keys, Qs) of
+malformed_request(#{path := <<?base_path, "rpc">>} = Req, S) ->
+    Keys = [cid, m, f, args],
+    case qs_keys_exist(Keys, Req) of
         false -> {true, Req, S};
         true -> {false, Req, S}
     end;
