@@ -32,7 +32,7 @@ This is an example of a valid json configuration
 ## Methods
 
 <details>
- <summary><code>GET</code> <code><b>/api/list</b></code> - list all containers managed from the server instance
+ <summary><code>GET</code> <code><b>/api/list</b></code> - list all containers managed from the server instance </summary>
 
 ##### Parameters
 
@@ -73,7 +73,7 @@ none
 
 > | name      |  type     | data type               | description                                                           |
 > |-----------|-----------|-------------------------|-----------------------------------------------------------------------|
-> | `container-id`  |  required | query string   |  The ID of the container |
+> | `cid`  |  required | query string   |  The ID of the container |
 
 ##### Responses
 
@@ -83,6 +83,26 @@ none
 > | `400`         | `...`   | `...`|
 > | `404`         | `...`   | `...`|
 
+
+</details>
+<details>
+ <summary><code>GET</code> <code><b>/api/rpc</b></code> - execute a synchronous remote procedure call on the erlang node executing in a container </summary>
+
+##### Parameters
+
+> | name      |  type     | data type       | description          |
+> |-----------|-----------|-------------------------|-----------|
+> | `cid`  |  required | query string   |  The ID of the container |
+> | `m`  |  required | query string   |   Base64 Encoded module atom (term in binary)  |
+> | `f`  |  required | query string   |   Base64 Encoded function atom (term in binary) |
+> | `args`  |  required | query string   |  Base64 Encoded list of arguments (term in binary) |
+
+
+##### Responses
+
+> | http code     | content-type                      | response                                              |
+> |---------------|-----------------------------------|------------------------------------------------------|
+> | `200`         | `application/json`   | `result`|
 
 </details>
 
