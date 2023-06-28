@@ -33,39 +33,37 @@ is_authorized(Req, State) ->
         {{false, <<"Bearer">>}, Req, State}
     end.
 
--define(base_path, "/api/").
-
-malformed_request(#{path := <<?base_path, "list">>} = Req, S) ->
+malformed_request(#{bindings := #{method := <<"list">>}} = Req, S) ->
     {false, Req, S};
-malformed_request(#{path := <<?base_path, "logs">>} = Req, S) ->
+malformed_request(#{bindings := #{method := <<"logs">>}} = Req, S) ->
     case qs_keys_exist([cid], Req) of
         false -> {true, Req, S};
         true -> {false, Req, S}
     end;
-malformed_request(#{path := <<?base_path, "rpc">>} = Req, S) ->
+malformed_request(#{bindings := #{method := <<"rpc">>}}= Req, S) ->
     Keys = [cid, m, f, args],
     case qs_keys_exist(Keys, Req) of
         false -> {true, Req, S};
         true -> {false, Req, S}
     end;
-malformed_request(#{path := _} = Req, S) ->
+malformed_request(Req, S) ->
     case check_config(Req) of
         {ok, Cfg} -> {false, Req, Cfg};
         error -> {true, Req, S}
     end.
 
-resource_exists(#{path := <<?base_path, M/binary>>, qs := Qs} = Req, State)
+resource_exists(#{bindings := #{method := M}, qs := Qs} = Req, State)
 when M == <<"logs">> orelse M == <<"rpc">> ->
     CID = get_qs_entry(<<"cid">>, Qs),
     case braidnet_orchestrator:verify(CID) of
         ok -> {true, Req, State};
         {error, _} -> {false, Req, State}
     end;
-resource_exists(#{path := <<?base_path, "list">>} = Req, State) ->
+resource_exists(#{bindings := #{method := <<"list">>}} = Req, State) ->
     {true, Req, State};
-resource_exists(#{path := <<?base_path, "destroy">>} = Req, State) ->
+resource_exists(#{bindings := #{method := <<"destroy">>}} = Req, State) ->
     {true, Req, State};
-resource_exists(#{path := _} = Req, State) ->
+resource_exists(Req, State) ->
     {false, Req, State}.
 
 content_types_provided(Req, State) ->
