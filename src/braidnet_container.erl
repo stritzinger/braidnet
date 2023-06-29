@@ -61,8 +61,15 @@ handle_info(Msg, S) ->
     {noreply, S}.
 
 % INTERNAL ---------------------------------------------------------------------
-
 check_image_signature(Docker, DockerImage) ->
+    case application:get_env(braidnet, disable_docker_trust, false) of
+        true ->
+            ok;
+        false ->
+            do_check_image_signature(Docker, DockerImage)
+    end.
+
+do_check_image_signature(Docker, DockerImage) ->
     PortSettings = [
         {args, [
             "trust",
