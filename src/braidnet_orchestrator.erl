@@ -25,6 +25,7 @@
 
 -include_lib("kernel/include/logger.hrl").
 
+% Time in milliseconds given to any container to peacefully shutdown
 -define(GRACE_PERIOD, 10_000).
 
 % custom ID to store container reference internally
@@ -33,6 +34,7 @@
 -record(container, {
     node_name           :: binary(),
     ws_pid              :: undefined | pid(),
+    sup_pid             :: undefined | pid(),
     image               :: binary(),
     status              :: starting | broken | running | lost,
     logs = ""           :: string(),
@@ -114,22 +116,26 @@ handle_call({get_ws_pid, CID}, _, #state{containers = CTNs} = S) ->
     {reply, Pid, S};
 
 handle_call({delete, NodeName}, _, #state{containers = CTNs} = S) ->
-    Partition = lists:partition(
+    {Delete, Rest} = lists:partition(
         fun ({_ ,#container{node_name = Name}}) when Name == NodeName -> true;
             (_) -> false
         end, maps:to_list(CTNs)),
-    Remaining = case Partition of
-        {[{CID, #container{ws_pid = WsPid}}], Rest} when is_pid(WsPid) ->
-            braidnet_braidnode_api:notify(WsPid, shutdown),
-            % In case the API shutdown fails or takes to long,
-            % we kill the erlang process that is linked to the container
-            timer:apply_after(?GRACE_PERIOD, supervisor, terminate_child, [braidnet_container_pool_sup, CID]),
-            timer:apply_after(?GRACE_PERIOD, supervisor, delete_child, [braidnet_container_pool_sup, CID]),
-            Rest;
-        {_, Rest} ->
-            Rest
+    case Delete of
+        [{_, #container{ws_pid = WsPid, sup_pid = Sup}}] ->
+            case is_pid(WsPid) of
+                true -> braidnet_braidnode_api:notify(WsPid, shutdown);
+                false -> ok
+            end,
+            % In case the API shutdown fails or takes too long,
+            % we kill the container supervisor which then deletes the container
+            timer:apply_after(?GRACE_PERIOD, supervisor, terminate_child,
+                              [braidnet_container_pool_sup, Sup]),
+            timer:apply_after(?GRACE_PERIOD, supervisor, delete_child,
+                              [braidnet_container_pool_sup, Sup]);
+        [] ->
+            ok
     end,
-    {reply, ok, S#state{containers = maps:from_list(Remaining)}};
+    {reply, ok, S#state{containers = maps:from_list(Rest)}};
 
 handle_call({sign, CID, Payload, HashAlg, SignAlg}, _,
             #state{containers = CTNs} = S) ->
@@ -190,6 +196,17 @@ handle_cast({log, CID, Text}, #state{containers = CTNs} = S)  ->
             {noreply, S}
     end;
 
+handle_cast({set_container_sup, CID, Pid}, #state{containers = CTNs} = S)  ->
+    case maps:is_key(CID, CTNs) of
+        true ->
+            CTN = maps:get(CID, CTNs),
+            NewCTN = CTN#container{sup_pid = Pid},
+            {noreply, S#state{containers = maps:update(CID, NewCTN, CTNs)}};
+        false ->
+            ?LOG_ERROR("Setting supervisor for unknown cid: ~p", [CID]),
+            {noreply, S}
+    end;
+
 handle_cast(Msg, S) ->
     ?LOG_ERROR("Unexpected cast ~p", [Msg]),
     {noreply, S}.
@@ -224,18 +241,15 @@ get_key(CID) ->
 
 async_start_child(Name, CID, Opts) ->
     spawn(fun() ->
-        Child = #{
-            id => CID,
-            start => {braidnet_container, start_link, [Name, CID, Opts]},
-            restart => transient
-        },
-        Result = supervisor:start_child(braidnet_container_pool_sup, Child),
+        Result = supervisor:start_child(braidnet_container_pool_sup,
+                                        [Name, CID, Opts]),
         _Status = case Result of
-            {ok, _Pid} ->
+            {ok, Pid} ->
                 ?LOG_NOTICE("Started node ~p",[Name]),
+                gen_server:cast(?MODULE, {set_container_sup, CID, Pid}),
                 starting;
             {error, {shutdown, {failed_to_start_child, _, E}}} ->
-                ?LOG_NOTICE("Node Start Failure ~p", [E]),
+                ?LOG_WARNING("Node Start Failure ~p", [E]),
                 broken
         end
         % TODO report status to orchestrator

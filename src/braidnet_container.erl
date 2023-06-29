@@ -19,7 +19,7 @@ start_link(Name, CID, Opts) ->
 
 % gen_server callbacks ---------------------------------------------------------
 
-init([Name, CID, #{<<"image">> := DockerImage} = Opts]) ->
+init([Name, CID, #{<<"image">> := DockerImage}]) ->
     Docker = os:find_executable("docker"),
     SignCheck = check_image_signature(Docker, DockerImage),
     PortReservation = braidnet_epmd_server:reserve_port(self()),
@@ -28,11 +28,11 @@ init([Name, CID, #{<<"image">> := DockerImage} = Opts]) ->
             {ok, #state{cid = CID,
                         port = docker_run(Docker, Name, CID, DockerImage, N)}};
         {{error, E}, _} ->
-            ?LOG_WARNING("Rejecting unsigned image: ~p for: ~p",[DockerImage, E]),
+            ?LOG_DEBUG("Rejecting unsigned image: ~p for: ~p",[DockerImage, E]),
             braidnet_orchestrator:log(CID, "brainet: docker image has no trust data"),
             {stop, E};
         {_, {error, E}} ->
-            ?LOG_WARNING("Error reserving port: ~p",[E]),
+            ?LOG_DEBUG("Error reserving port: ~p",[E]),
             braidnet_orchestrator:log(CID, "brainet: could not reserve port for container"),
             {stop, E}
     end.
@@ -61,31 +61,42 @@ handle_info(Msg, S) ->
     {noreply, S}.
 
 % INTERNAL ---------------------------------------------------------------------
+
 check_image_signature(Docker, DockerImage) ->
-    case application:get_env(braidnet, disable_docker_trust, false) of
-        true ->
+    case application:get_env(braidnet, docker_trust) of
+        {ok, false} ->
+            ?LOG_WARNING("Docker content trust has been disabled!"),
             ok;
-        false ->
+        {ok, true} ->
             do_check_image_signature(Docker, DockerImage)
     end.
 
 do_check_image_signature(Docker, DockerImage) ->
     PortSettings = [
+        {env,[docker_content_trust_env()]},
         {args, [
-            "trust",
-            "inspect",
+            % pulling will fail if the image sign data is empty or unstrusted
+            "pull",
             DockerImage
-        ]}
+        ]},
+        exit_status,
+        stderr_to_stdout
     ],
     Port = erlang:open_port({spawn_executable, Docker}, PortSettings),
-    Result = receive {Port, {data, Data}} ->
-        jiffy:decode(Data,[return_maps])
+    Result = receive
+        {Port, {exit_status, Code}} -> evaluate_exit_code(Code)
     end,
     case Result of
-        [] -> {error, no_signatures};
-        _ ->
-            % ?LOG_DEBUG("Trust inspect result: ~p",[Result]),
-            ok
+        normal ->
+            ?LOG_DEBUG("Trust result: ~p",[Result]),
+            ok;
+        _ -> {error, invalid_signatures}
+    end.
+
+docker_content_trust_env() ->
+    case application:get_env(braidnet, docker_trust) of
+        {ok, false} -> {"DOCKER_CONTENT_TRUST", "0"};
+        {ok, true} -> {"DOCKER_CONTENT_TRUST", "1"}
     end.
 
 docker_run(Docker, Name, CID, DockerImage, PortNumber) ->
@@ -94,6 +105,7 @@ docker_run(Docker, Name, CID, DockerImage, PortNumber) ->
     CA = braidnet_cert:get_ca_file(),
     Cert = braidnet_cert:new_braidnode_cert(StringCID),
     PortSettings = [
+        {env,[docker_content_trust_env()]},
         {args, [
             "run",
             "--rm",

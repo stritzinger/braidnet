@@ -12,6 +12,7 @@
     uuid
    ]},
   {env,[
+    {docker_trust, true}
   ]},
   {modules, []},
 
