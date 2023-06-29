@@ -11,20 +11,12 @@
 start_link() ->
     supervisor:start_link({local, ?SERVER}, ?MODULE, []).
 
-%% sup_flags() = #{strategy => strategy(),         % optional
-%%                 intensity => non_neg_integer(), % optional
-%%                 period => pos_integer()}        % optional
-%% child_spec() = #{id => child_id(),       % mandatory
-%%                  start => mfargs(),      % mandatory
-%%                  restart => restart(),   % optional
-%%                  shutdown => shutdown(), % optional
-%%                  type => worker(),       % optional
-%%                  modules => modules()}   % optional
 init([]) ->
-    SupFlags = #{
-        strategy => one_for_one,
-        intensity => 1,
-        period => 10
-    },
-    ChildSpecs = [],
+    SupFlags = #{strategy => simple_one_for_one},
+    ChildSpecs = [
+        #{id => braidnet_container_sup,
+          start => {braidnet_container_sup, start_link, []},
+          type => supervisor,
+          restart => temporary}
+    ],
     {ok, {SupFlags, ChildSpecs}}.
