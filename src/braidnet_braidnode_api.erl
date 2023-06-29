@@ -20,10 +20,10 @@
 
 -record(state, {
     cid,
-    pending_requests = #{}% outgoing requests to braidnode
+    pending_requests = #{} % outgoing requests to braidnode
 }).
 
-
+%--- API -----------------------------------------------------------------------
 
 notify(Pid, Method) ->
     notify(Pid, Method, undefined).
@@ -38,8 +38,8 @@ request(Pid, Caller, Method, Params) ->
     Pid ! {request, Caller, Method, Params},
     receive {Pid, Msg} -> Caller ! Msg end.
 
-
 %--- WS Callbacks --------------------------------------------------------------
+
 init(Req, State) ->
     ?LOG_DEBUG("WS connection attempt..."),
     case cowboy_req:header(<<"id">>, Req, undefined) of
@@ -62,30 +62,19 @@ websocket_init(#state{cid = CID} = S) ->
     braidnet_orchestrator:connect(CID, self()),
     {[], S}.
 
-websocket_handle(Frame = {binary, Binary}, #state{cid = CID} = State) ->
-    % TODO Refactor using proper jsonRPC handling
-    try
-        Map = jiffy:decode(Binary, [return_maps]),
-        case maps:is_key(<<"jsonrpc">>, Map) of
-            true ->
-                case maps:is_key(<<"id">>, Map) of
-                    true ->
-                        {Res, Err} = {maps:is_key(<<"result">>, Map),
-                                      maps:is_key(<<"error">>, Map)},
-                        case {Res, Err} of
-                            {false, false} -> % this is a request
-                                {[{binary, handle_request(CID, Map)}], State};
-                            {_, _} -> % this is a responce
-                                {ok, handle_response(Map, State)}
-                        end;
-                    false -> % notification
-                        handle_request(CID, Map),
-                        {ok, State}
-                end
-        end
-    catch E:R:S ->
-        ?LOG_DEBUG("~p~n", [{E,R,S}]),
-        {[Frame], State}
+websocket_handle({binary, Binary}, #state{cid = CID} = State) ->
+    case braidnet_jsonrpc:decode(Binary) of
+        {call, Method, Params, ID} ->
+            {handle_request(CID, Method, Params, ID), State};
+        {notification, Method, Params} ->
+            handle_notification(CID, Method, Params),
+            {ok, State};
+        {result, _Result, _ID} = Result ->
+            {ok, handle_response(Result, State)};
+        {error, _Code, _Message, _Data, _ID} = Error ->
+            {ok, handle_response(Error, State)};
+        {error, _Reason, EncodedReply} ->
+            {[{binary, EncodedReply}], State}
     end;
 websocket_handle(Frame = {text, Text}, State) ->
     ?LOG_DEBUG("Incoming Text: ~p", [Text]),
@@ -93,11 +82,19 @@ websocket_handle(Frame = {text, Text}, State) ->
 websocket_handle(_Frame, State) ->
     {ok, State}.
 
-websocket_info({notify, Method, Params}, State) ->
-    JsonRPC = jsonrpc_object(notification, Method, Params),
+ websocket_info({notify, Method, undefined}, State) ->
+    JsonRPC = braidnet_jsonrpc:notification(Method),
     {[{binary, JsonRPC}], State};
+websocket_info({notify, Method, Params}, State) ->
+    JsonRPC = braidnet_jsonrpc:notification(Method, Params),
+    {[{binary, JsonRPC}], State};
+websocket_info({request, Caller, Method, undefined}, #state{pending_requests = Map} = S) ->
+    ID = id(),
+    JsonRPC = braidnet_jsonrpc:call(Method, ID),
+    {[{binary, JsonRPC}], S#state{pending_requests = Map#{ID => Caller}}};
 websocket_info({request, Caller, Method, Params}, #state{pending_requests = Map} = S) ->
-    {ID, JsonRPC} = jsonrpc_object(request, Method, Params),
+    ID = id(),
+    JsonRPC = braidnet_jsonrpc:call(Method, Params, ID),
     {[{binary, JsonRPC}], S#state{pending_requests = Map#{ID => Caller}}};
 websocket_info(Info, State) ->
     ?LOG_WARNING("Unexpected info: ~p", [Info]),
@@ -107,65 +104,58 @@ terminate(Reason, _, #state{cid = CID}) ->
     ?LOG_DEBUG("WS terminated ~p",[Reason]),
     braidnet_orchestrator:disconnect(CID).
 
-handle_request(CID, #{<<"method">> := Method,
-                    <<"id">> := Id,
-                    <<"params">> := Params}) ->
-    Response = case Method of
-        <<"register_node">> ->
-            #{<<"name">> := Name, <<"port">> := Port} = Params,
-            braidnet_epmd_server:register_node(Name, Port);
-        <<"address_please">> ->
-            #{<<"name">> := Name, <<"host">> := Host} = Params,
-            braidnet_epmd_server:address_please(Name, Host);
-        <<"names">> ->
-            #{<<"node">> := Node, <<"host">> := Host} = Params,
-            braidnet_epmd_server:names(Node, Host);
-        <<"sign">> ->
-            #{<<"payload">> := Payload,
-              <<"hash_alg">> := HashAlg,
-              <<"sign_alg">> := SignAlg} = Params,
-            braidnet_orchestrator:sign(CID, Payload, HashAlg, SignAlg)
+% internal ---------------------------------------------------------------------
+
+handle_request(CID, Method,  Params, ID) ->
+    JSON =
+    try call_method(Method, Params, CID) of
+        undefined ->  braidnet_jsonrpc:error(method_not_found, ID);
+        Result -> braidnet_jsonrpc:result(Result, ID)
+    catch Ex:Er:Stack ->
+        ?LOG_ERROR("JsonRPC internal error ~p : ~p : ~p",[Ex, Er, Stack]),
+        braidnet_jsonrpc:error(internal_error, ID)
     end,
-    jsonrpc_response_object(Id, Response);
-handle_request(_CID, #{<<"method">> := Method, <<"params">> := _Params}) ->
-    case Method of
-        _ -> unhandled
-    end.
+    [{binary, JSON}].
 
--spec jsonrpc_response_object(binary(), term()) -> jiffy:json_value().
-jsonrpc_response_object(Id, Result) when is_tuple(Result) ->
-    jsonrpc_response_object(Id, erlang:tuple_to_list(Result));
-jsonrpc_response_object(Id, Result) ->
-    Map = #{
-        <<"jsonrpc">> => <<"2.0">>,
-        <<"id">> => Id,
-        <<"result">> => Result
-    },
-    jiffy:encode(Map).
+handle_notification(_CID, Method, _Params) ->
+    ?LOG_WARNING("Unhandled jsonrpc notification method ~p",[Method]).
 
-jsonrpc_object(Type, Method, Params) ->
-    Map1 = #{
-        <<"jsonrpc">> => <<"2.0">>,
-        <<"method">> => Method
-    },
-    Map2 = case Params of
-        undefined -> Map1;
-        _ -> maps:put(<<"params">>, Params, Map1)
-    end,
-     case Type of
-        request ->
-            ID = uuid:uuid_to_string(uuid:get_v4(), binary_standard),
-            {ID,  jiffy:encode(maps:put(<<"id">>, ID, Map2))};
-        notification ->
-            jiffy:encode(Map2)
-    end.
-
-handle_response(#{<<"id">> := ID} = Map,
+handle_response({result, Result, ID}, #state{pending_requests = Preqs} = S) ->
+    #{ID := Caller} = Preqs,
+    Caller ! {self(), Result},
+    S#state{pending_requests = maps:remove(ID, Preqs)};
+handle_response({error, _, _, _, ID} = Error,
                 #state{pending_requests = Preqs} = S) ->
     #{ID := Caller} = Preqs,
-    Msg = case Map of
-        #{<<"error">> := E} -> E;
-        #{<<"result">> := R} -> R
-    end,
-    Caller ! {self(), Msg},
+    Caller ! {self(), Error},
     S#state{pending_requests = maps:remove(ID, Preqs)}.
+
+id() -> uuid:uuid_to_string(uuid:get_v4(), binary_standard).
+
+call_method(<<"register_node">>, #{<<"name">> := Name, <<"port">> := Port},
+            _CID) ->
+    {ok, Cons} = braidnet_epmd_server:register_node(Name, Port),
+    #{connections => Cons};
+call_method(<<"address_please">>,#{<<"name">> := Name, <<"host">> := Host},
+            _CID) ->
+    case braidnet_epmd_server:address_please(Name, Host) of
+        {ok, Addr, Port} -> #{address => Addr, port => Port};
+        {error, Reason} -> #{error => Reason}
+    end;
+call_method(<<"names">>, #{<<"node">> := Node, <<"host">> := Host},
+            _CID) ->
+    case braidnet_epmd_server:names(Node, Host) of
+        {ok, Map} -> Map;
+        {error, Reason} -> #{error => Reason}
+    end;
+call_method(<<"sign">>,
+            #{<<"payload">> := Payload,
+              <<"hash_alg">> := HashAlg,
+              <<"sign_alg">> := SignAlg},
+            CID) ->
+    case braidnet_orchestrator:sign(CID, Payload, HashAlg, SignAlg) of
+        Binary -> Binary;
+        {error, E} -> #{error => E}
+    end;
+call_method(_, _, _) ->
+    undefined.
