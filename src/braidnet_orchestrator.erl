@@ -212,7 +212,7 @@ sign_container_payload(CID, Payload, <<"sha512">>, <<"rsa_pss_rsae">>) ->
         base64:encode(erlang:term_to_binary(Signature))
     catch error:E ->
         ?LOG_ERROR("Error signing key: ~p", [E]),
-        #{error => E}
+        {error, E}
     end.
 
 get_key(CID) ->

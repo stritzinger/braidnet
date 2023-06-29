@@ -50,7 +50,7 @@
 reserve_port(Pid) ->
     gen_server:call(?MODULE, {?FUNCTION_NAME, Pid}).
 
-% Store which other Braidnodes a given Braidnode should be able to connect to.
+% Stores which other Braidnodes a given Braidnode should be able to connect to.
 % We'll send this list to the node when it registers with this module.
 -spec store_connections(Node, Connections) -> Result when
     Node :: nodename(),
@@ -82,7 +82,7 @@ address_please(Name, Host) ->
     try gen_server:call({?MODULE, Braidnet}, {?FUNCTION_NAME, Name, Host}, 5000)
     catch E:R:_S ->
         logger:error("Unreachable node ~p: ~n~p~n", [Braidnet, {E, R}]),
-        [error, timeout]
+        {error, timeout}
     end.
 
 % Returns the node names (and their ports) registered by Braidnet on a host.
@@ -97,7 +97,7 @@ names(Node, Host) ->
     try gen_server:call({?MODULE, Braidnet}, {?FUNCTION_NAME, Host, Node}, 5000)
     catch E:R:_S ->
         logger:error("Unreachable node ~p: ~n~p~n", [Braidnet, {E, R}]),
-        [error, timeout]
+        {error, timeout}
     end.
 
 %-------------------------------------------------------------------------------
