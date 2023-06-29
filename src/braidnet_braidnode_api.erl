@@ -64,10 +64,10 @@ websocket_init(#state{cid = CID} = S) ->
 
 websocket_handle({binary, Binary}, #state{cid = CID} = State) ->
     case braidnet_jsonrpc:decode(Binary) of
-        {call, _Method, _Params, _ID} = Call->
-            {handle_request(CID, Call), State};
-        {notification, _Method, _Params} = Notification ->
-            handle_notification(CID, Notification),
+        {call, Method, Params, ID} ->
+            {handle_request(CID, Method, Params, ID), State};
+        {notification, Method, Params} ->
+            handle_notification(CID, Method, Params),
             {ok, State};
         {result, _Result, _ID} = Result ->
             {ok, handle_response(Result, State)};
@@ -106,7 +106,7 @@ terminate(Reason, _, #state{cid = CID}) ->
 
 % internal ---------------------------------------------------------------------
 
-handle_request(CID, {call, Method,  Params, ID}) ->
+handle_request(CID, Method,  Params, ID) ->
     JSON =
     try call_method(Method, Params, CID) of
         undefined ->  braidnet_jsonrpc:error(method_not_found, ID);
@@ -117,7 +117,7 @@ handle_request(CID, {call, Method,  Params, ID}) ->
     end,
     [{binary, JSON}].
 
-handle_notification(_CID, {notification, Method, _Params}) ->
+handle_notification(_CID, Method, _Params) ->
     ?LOG_WARNING("Unhandled jsonrpc notification method ~p",[Method]).
 
 handle_response({result, Result, ID}, #state{pending_requests = Preqs} = S) ->
