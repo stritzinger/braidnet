@@ -4,7 +4,8 @@
     start/0,
     this_nodehost/0,
     this_nodename/0,
-    host_environment/0
+    host_environment/0,
+    fly_machines/0
 ]).
 
 -include_lib("kernel/include/logger.hrl").
@@ -46,7 +47,7 @@ host_environment() ->
             fly
     end.
 
-%-------------------------------------------------------------------------------
+% Returns a list of machine ids that are part of this fly app
 -spec fly_machines() -> [string()].
 fly_machines() ->
     #hostent{h_addr_list = MachineList} = fly_ns_machines(),
@@ -56,6 +57,7 @@ fly_machines() ->
         Machine
     end, MachinesWithRegions).
 
+%-------------------------------------------------------------------------------
 -spec host_to_ip_map([string()]) -> #{string() := inet:ip6_address()}.
 host_to_ip_map(Machines) ->
     lists:foldl(fun(Machine, Acc) ->
