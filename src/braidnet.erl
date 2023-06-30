@@ -6,6 +6,7 @@
     test_node_fly/1
 ]).
 
+-export([instances/0]).
 -export([launch_configuration/1]).
 -export([list/0]).
 -export([logs/1]).
@@ -58,6 +59,9 @@ test_node_fly(RemoteMachine) ->
         }
     },
     launch_configuration(#{ThisHost => NodeMap}).
+
+instances() ->
+    [list_to_binary(M) || M <- braidnet_cluster:fly_machines()].
 
 launch_configuration(NodesMap) ->
     ThisHost = braidnet_cluster:this_nodehost(),

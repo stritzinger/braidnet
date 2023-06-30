@@ -33,6 +33,8 @@ is_authorized(Req, State) ->
         {{false, <<"Bearer">>}, Req, State}
     end.
 
+malformed_request(#{bindings := #{method := <<"instances">>}} = Req, S) ->
+    {false, Req, S};
 malformed_request(#{bindings := #{method := <<"list">>}} = Req, S) ->
     {false, Req, S};
 malformed_request(#{bindings := #{method := <<"logs">>}} = Req, S) ->
@@ -59,6 +61,8 @@ when M == <<"logs">> orelse M == <<"rpc">> ->
         ok -> {true, Req, State};
         {error, _} -> {false, Req, State}
     end;
+resource_exists(#{bindings := #{method := <<"instances">>}} = Req, State) ->
+    {true, Req, State};
 resource_exists(#{bindings := #{method := <<"list">>}} = Req, State) ->
     {true, Req, State};
 resource_exists(#{bindings := #{method := <<"destroy">>}} = Req, State) ->
@@ -76,6 +80,9 @@ delete_resource(#{bindings := #{method := <<"destroy">>}} = Req, BraidCfg = S) -
     braidnet:remove_configuration(BraidCfg),
     {true, Req, S}.
 
+to_json(#{bindings := #{method := <<"instances">>}} = Req, S) ->
+    Result = braidnet:instances(),
+    {json_encode(Result), Req, S};
 to_json(#{bindings := #{method := <<"list">>}} = Req, S) ->
     Result = braidnet:list(),
     {json_encode(Result), Req, S};

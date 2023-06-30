@@ -32,6 +32,23 @@ This is an example of a valid json configuration
 ## Methods
 
 <details>
+ <summary><code>GET</code> <code><b>/api/instances</b></code> - lists all braidnet instances that compose the cluster  </summary>
+
+##### Parameters
+
+Note: this methos does not need `"fly-force-instance-id"` since can solved by any instance
+
+##### Responses
+
+> | http code     | content-type                      | response                                              |
+> |---------------|-----------------------------------|------------------------------------------------------|
+> | `200`         | `application/json`   | `json list`|
+
+    ["5683929b651208", "e28650eeb01e68", ...]
+
+</details>
+
+<details>
  <summary><code>GET</code> <code><b>/api/list</b></code> - list all containers managed from the server instance </summary>
 
 ##### Parameters
