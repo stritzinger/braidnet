@@ -1,42 +1,42 @@
 # braidnet
 
 An OTP application to spawn containers and orchestrate communication between them
-and their peers hosted by remote Braidnet instances.
+and their peers hosted by remote braidnet instances.
 
-Deploy Braidnet onto host machines (currently Fly.io), build Erlang
-applications that run [Braidnode](https://github.com/stritzinger/braidnode),
-and use [Braidclient](https://github.com/stritzinger/braidclient) to define
+Deploy braidnet onto host machines (currently Fly.io), build Erlang
+applications that run [braidnode](https://github.com/stritzinger/braidnode),
+and use [braidclient](https://github.com/stritzinger/braidclient) to define
 your node connections and deploy your applications.
 
-Use [Braidcert](https://github.com/stritzinger/braidcert) to
-secure the Erlang distribution between Braidnet instances and Braidnode apps.
+Use [braidcert](https://github.com/stritzinger/braidcert) to
+secure the Erlang distribution between braidnet instances and braidnode apps.
 
 ## Build
 
     rebar3 compile
 
 ## Run locally
-Start [Braidcert](https://github.com/stritzinger/braidcert)
+Start [braidcert](https://github.com/stritzinger/braidcert)
 first in a separate shell, then:
 
     rebar3 shell
 
 ## Deploy
 Braidnet will only be able to start up if it can connect to a
-[Braidcert](https://github.com/stritzinger/braidcert) instance.
+[braidcert](https://github.com/stritzinger/braidcert) instance.
 
-For now, Braidnet is meant to be deployed on [Fly.io](https://fly.io).
+For now, braidnet is meant to be deployed on [Fly.io](https://fly.io).
 Create a new Fly application, replace the value of the `app` field
 in the `fly.toml` file in this repo with your Fly app's name,
 and deploy using `flyctl`.
 
 ## Use
-To interface with Braidnet and deploy applications, use
-[Braidclient](https://github.com/stritzinger/braidclient).
+To interface with braidnet and deploy applications, use
+[braidclient](https://github.com/stritzinger/braidclient).
 
 
 ## Configuration
-When Braidnet is ran via the rebar3 shell, `config/shell.config` applies.
+When braidnet is ran via the rebar3 shell, `config/shell.config` applies.
 
 When the relx release is ran, `config/container.config.src` (and
 `config/container.vm.args.src`) apply.
@@ -45,11 +45,11 @@ The possible configuration values are:
 ```erlang
 [
   {braidnet, [
-    % HTTP Bearer authetication token between Braidclient and Braidnet:
+    % HTTP Bearer authetication token between braidclient and braidnet:
     {rest_api_token, binary()},
-    % Braidcert Fly.io app URL:
+    % braidcert Fly.io app URL:
     {braidcert_url, string()},
-    % HTTP Bearer authetication token between Braidcert and Braidnet:
+    % HTTP Bearer authetication token between braidcert and braidnet:
     {braidcert_key, string()}
     % Enable only accepting signed Docker images:
     {docker_trust, boolean()}
