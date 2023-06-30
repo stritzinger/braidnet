@@ -1,11 +1,11 @@
 # braidnet
 
-An OTP application to spawn containers and orchestrate comunication between them
-and their peers hosted by other Braidnet remote instances.
+An OTP application to spawn containers and orchestrate communication between them
+and their peers hosted by remote Braidnet instances.
 
-Deploy Braidnet onto host machines (currently Fly.io), develop Erlang
+Deploy Braidnet onto host machines (currently Fly.io), build Erlang
 applications that run [Braidnode](https://github.com/stritzinger/braidnode),
-use [Braidclient](https://github.com/stritzinger/braidclient) to define
+and use [Braidclient](https://github.com/stritzinger/braidclient) to define
 your node connections and deploy your applications.
 
 Use [Braidcert](https://github.com/stritzinger/braidcert) to
@@ -27,8 +27,7 @@ Braidnet will only be able to start up if it can connect to a
 
 For now, Braidnet is meant to be deployed on [Fly.io](https://fly.io).
 Create a new Fly application, replace the value of the `app` field
-in the `fly.toml` file in this repo with your Fly app's name
-and the `ORIGIN` field with your app's Fly URL,
+in the `fly.toml` file in this repo with your Fly app's name,
 and deploy using `flyctl`.
 
 ## Use
@@ -46,8 +45,6 @@ The possible configuration values are:
 ```erlang
 [
   {braidnet, [
-    % Fly.io app URL (e.g.: myapp.fly.dev):
-    {hostname, string()},
     % HTTP Bearer authetication token between Braidclient and Braidnet:
     {rest_api_token, binary()},
     % Braidcert Fly.io app URL:

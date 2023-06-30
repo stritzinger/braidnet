@@ -10,7 +10,6 @@ kill_timeout = "5s"
 
 [env]
   LOG_LEVEL = "debug"
-  ORIGIN = "braidnet.fly.dev"
 
 [http_service]
   internal_port = 8080

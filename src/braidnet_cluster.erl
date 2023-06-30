@@ -3,7 +3,8 @@
 -export([
     start/0,
     this_nodehost/0,
-    this_nodename/0
+    this_nodename/0,
+    host_environment/0
 ]).
 
 -include_lib("kernel/include/logger.hrl").
@@ -12,14 +13,13 @@
 %-------------------------------------------------------------------------------
 -spec start() -> ok | ignore.
 start() ->
-    case os:getenv("FLY_APP_NAME") of
-        false ->
-            ?LOG_NOTICE("Not on Fly.io ... Not checking the cluster."),
-            ignore;
-        _ ->
+    case host_environment() of
+        fly ->
             Hosts = update_dns(),
-            ping_braidnets(Hosts)
-
+            ping_braidnets(Hosts);
+        _ ->
+            ?LOG_NOTICE("Not on Fly.io ... Not checking the cluster."),
+            ignore
     end.
 
 % Returns the host part of the long name of this node, as a binary.
@@ -35,6 +35,16 @@ this_nodename() ->
     Node = erlang:atom_to_binary(node()),
     [Name, _] = binary:split(Node, <<"@">>),
     Name.
+
+% Checks what kind of host environment this Braidnet is running on.
+-spec host_environment() -> atom().
+host_environment() ->
+    case os:getenv("FLY_APP_NAME") of
+        false ->
+            localhost;
+        _ ->
+            fly
+    end.
 
 %-------------------------------------------------------------------------------
 -spec fly_machines() -> [string()].

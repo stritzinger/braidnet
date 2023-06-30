@@ -15,13 +15,13 @@ start(_StartType, _StartArgs) ->
     braidnet_cluster:start(),
     %---
     Port = application:get_env(braidnet, port, 8080),
-    Hostname = application:get_env(braidnet, hostname, "localhost"),
-    Dispatch = cowboy_router:compile(routes(Hostname)),
+    HostEnv = braidnet_cluster:host_environment(),
+    Dispatch = cowboy_router:compile(routes(HostEnv)),
     {ok, _} = cowboy:start_clear(example, [{port, Port}], #{
         env => #{dispatch => Dispatch}
     }),
     %---
-    ?LOG_DEBUG("Starting the docker deamon..."),
+    ?LOG_DEBUG("Starting the docker daemon..."),
     os:cmd("/usr/local/bin/dockerd-entrypoint.sh &"),
     %---
     braidnet_sup:start_link().
@@ -31,7 +31,7 @@ stop(_State) -> ok.
 %% internal functions ----------------------------------------------------------
 
 % Note: requests that come in on fly.io, use an internal IP as hostname.
-routes("localhost") ->
+routes(localhost) ->
     [
         {'_', [
             {"/braidnode", braidnet_braidnode_api, []},
