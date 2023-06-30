@@ -154,8 +154,8 @@ call_method(<<"sign">>,
               <<"sign_alg">> := SignAlg},
             CID) ->
     case braidnet_orchestrator:sign(CID, Payload, HashAlg, SignAlg) of
-        Binary -> Binary;
-        {error, E} -> #{error => E}
+        {error, E} -> #{error => E};
+        Binary -> Binary
     end;
 call_method(_, _, _) ->
     undefined.

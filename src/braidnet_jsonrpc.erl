@@ -86,13 +86,16 @@ decode(JSON) ->
                 decode_error(invalid_request, id(Decoded))
         end
     catch
-        throw:{error, {Pos, Reason}} ->
-            decode_error({parse_error, JSON, {Pos, Reason}}, null)
+        error:{Pos, Reason}:_ ->
+            decode_error({parse_error, Pos, Reason}, null)
     end.
 
 %--- Internal -----------------------------------------------------------------
 
-decode_error(Reason, Id) -> {error, Reason, error_reply(Reason, Id)}.
+decode_error({parse_error, _, _} = Reason, Id) ->
+    {error, Reason, error_reply(parse_error, Id)};
+decode_error(Reason, Id) ->
+    {error, Reason, error_reply(Reason, Id)}.
 
 encode(Message) ->
     jiffy:encode(maps:merge(Message, #{jsonrpc => <<"2.0">>})).

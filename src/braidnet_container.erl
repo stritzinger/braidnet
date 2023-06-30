@@ -12,7 +12,7 @@
 
 -include_lib("kernel/include/logger.hrl").
 
--record(state, {cid :: string(), port :: pid()}).
+-record(state, {cid :: binary(), port :: port()}).
 
 start_link(Name, CID, Opts) ->
     gen_server:start_link(?MODULE, [Name, CID, Opts], []).

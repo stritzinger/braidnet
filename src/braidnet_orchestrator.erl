@@ -38,7 +38,7 @@
     image               :: binary(),
     status              :: starting | broken | running | lost,
     logs = ""           :: string(),
-    last_down_time      :: erlang:timestamp()
+    last_down_time      :: integer()
 }).
 
 -record(state, {
