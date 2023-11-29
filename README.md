@@ -3,13 +3,14 @@
 An OTP application to spawn containers and orchestrate communication between them
 and their peers hosted by remote braidnet instances.
 
-Deploy braidnet onto host machines (currently Fly.io), build Erlang
-applications that run [braidnode](https://github.com/stritzinger/braidnode),
-and use [braidclient](https://github.com/stritzinger/braidclient) to define
-your node connections and deploy your applications.
+## Main steps
+We currently only support [Fly.io](https://fly.io) as cloud infrastracture.
 
-Use [braidcert](https://github.com/stritzinger/braidcert) to
-secure the Erlang distribution between braidnet instances and braidnode apps.
+1. Deploy a single [braidcert](https://github.com/stritzinger/braidcert) instance to be the root of trust in the internal PKI.
+2. Deploy `braidnet` onto host machines.
+3. Build docker conteiners with your Erlang Apps using [braidnode](https://github.com/stritzinger/braidnode).
+4. Finally, use [braid](https://github.com/stritzinger/braid) to define
+your node connections and deploy your applications.
 
 ## Build
 
@@ -32,7 +33,7 @@ and deploy using `flyctl`.
 
 ## Use
 To interface with braidnet and deploy applications, use
-[braidclient](https://github.com/stritzinger/braidclient).
+[braid](https://github.com/stritzinger/braid).
 
 
 ## Configuration
@@ -45,7 +46,7 @@ The possible configuration values are:
 ```erlang
 [
   {braidnet, [
-    % HTTP Bearer authetication token between braidclient and braidnet:
+    % HTTP Bearer authetication token between braid and braidnet:
     {rest_api_token, binary()},
     % braidcert Fly.io app URL:
     {braidcert_url, string()},
