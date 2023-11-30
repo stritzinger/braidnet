@@ -58,6 +58,9 @@ new_signing_request(CID) ->
         "-new",
         "-config", ConfigFile,
         "-key", PrivateKeyFile,
+        "-addext", "subjectKeyIdentifier=hash",
+        "-addext", "keyUsage=critical,nonRepudiation,digitalSignature,keyEncipherment,keyAgreement",
+        "-addext", "extendedKeyUsage=critical,serverAuth",
         "-addext", "subjectAltName=DNS.0:" ++ AltName,
         "-out", CsrFile
     ],

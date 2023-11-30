@@ -15,6 +15,9 @@ openssl req \
     -new \
     -config certs/cfg/braidnet.cfg \
     -key certs/braidnet.key \
+    -addext subjectKeyIdentifier=hash  \
+    -addext keyUsage=critical,nonRepudiation,digitalSignature,keyEncipherment,keyAgreement \
+    -addext extendedKeyUsage=critical,serverAuth \
     -addext subjectAltName=DNS.0:"${FLY_MACHINE_ID}" \
     -out certs/braidnet.csr
 
