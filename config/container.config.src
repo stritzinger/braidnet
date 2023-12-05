@@ -2,8 +2,8 @@
   {braidnet, [
     {rest_api_token, <<"${AUTH_TOKEN}">>},
     {braidcert_url, "https://braidcert.fly.dev/csr/"},
-    {braidcert_key, "${BRAIDCERT_KEY}"}
-    %{docker_trust, false} % defaults to true
+    {braidcert_key, "${BRAIDCERT_KEY}"},
+    {docker_trust, false} % defaults to true
   ]},
   {kernel,[
       {logger_level, ${LOG_LEVEL:-notice}},
