@@ -117,6 +117,7 @@ docker_run(Docker, Name, CID, DockerImage, PortNumber) ->
             "--env", "BRD_EPMD_PORT=" ++ integer_to_list(PortNumber),
             "--hostname", binary_to_list(NodeHost),
             "--network", "host",
+            "--pull", "always", % Just for development, should be user configured
             binary_to_list(DockerImage)
         ]},
         exit_status,
