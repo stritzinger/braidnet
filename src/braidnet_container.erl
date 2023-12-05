@@ -45,12 +45,14 @@ handle_cast(Msg, S) ->
     ?LOG_ERROR("Unexpected cast ~p", [Msg]),
     {noreply, S}.
 
-handle_info({Port, {data, Data}}, #state{cid = CID, port = Port} = S) ->
+handle_info({Port, {data, Data} = D}, #state{cid = CID, port = Port} = S) ->
+    notify_monitors(D),
     braidnet_orchestrator:log(CID, Data),
     % This is just to see container logs in early development
     [?LOG_DEBUG("Container ~p: ~s", [CID, L]) || L <- string:split(Data, "\n", all)],
     {noreply, S};
-handle_info({Port, {exit_status, Code}}, #state{cid = CID, port = Port} = S) ->
+handle_info({Port, {exit_status, Code} = E}, #state{cid = CID, port = Port} = S) ->
+    notify_monitors(E),
     Reason = evaluate_exit_code(Code),
     ?LOG_DEBUG("Container ~p, terminated with code ~p for reason: ~p",
               [CID, Code, Reason]),
@@ -124,6 +126,12 @@ docker_run(Docker, Name, CID, DockerImage, PortNumber) ->
         stderr_to_stdout
     ],
     erlang:open_port({spawn_executable, Docker}, PortSettings).
+
+notify_monitors(Data) ->
+    lists:foreach(
+        fun(Pid) -> Pid ! Data end,
+        pg:get_local_members(monitor_ws)
+    ).
 
 evaluate_exit_code(0) -> normal;
 evaluate_exit_code(125) -> docker_run_failure;

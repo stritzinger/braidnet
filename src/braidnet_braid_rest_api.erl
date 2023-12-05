@@ -3,6 +3,7 @@
 
 % API
 -export([init/2]).
+-export([options/2]).
 -export([allowed_methods/2]).
 -export([malformed_request/2]).
 -export([is_authorized/2]).
@@ -18,17 +19,26 @@
 
 %--- API -----------------------------------------------------------------------
 init(Req, Opts) ->
-    {cowboy_rest, Req, Opts}.
+    Req1 = cowboy_req:set_resp_headers(cors_headers(), Req),
+    {cowboy_rest, Req1, Opts}.
+
+options(Req, State) ->
+    Req1 = cowboy_req:set_resp_headers(cors_headers(), Req),
+    {ok, Req1, State}.
 
 allowed_methods(Req, State) ->
-    Methods = [<<"GET">>, <<"POST">>, <<"DELETE">>],
+    Methods = [<<"GET">>, <<"POST">>, <<"DELETE">>, <<"OPTIONS">>],
     {Methods, Req, State}.
 
+is_authorized(#{method := <<"OPTIONS">>} = Req, State) ->
+    {true, Req, State};
 is_authorized(Req, State) ->
     SecretToken = application:get_env(braidnet, rest_api_token, undefined),
     try cowboy_req:parse_header(<<"authorization">>, Req) of
-        {bearer, SecretToken} -> {true, Req, State};
-        _ -> {{false, <<"Bearer">>}, Req, State}
+        {bearer, SecretToken} ->
+            {true, Req, State};
+        _ ->
+            {{false, <<"Bearer">>}, Req, State}
     catch _:_ ->
         {{false, <<"Bearer">>}, Req, State}
     end.
@@ -95,7 +105,9 @@ to_json(#{bindings := #{method := <<"rpc">>}, qs := Qs} = Req, S) ->
     M = get_qs_entry(<<"m">>, Qs),
     F = get_qs_entry(<<"f">>, Qs),
     A = get_qs_entry(<<"args">>, Qs),
-    Result = braidnet:rpc(CID, M, F, A),
+    Format = get_qs_entry(<<"format">>, Qs),
+    {CID2, M2, F2, A2} = maybe_reformat_rpc(Format, CID, M, F, A),
+    Result = braidnet:rpc(CID2, M2, F2, A2),
     {json_encode(Result), Req, S}.
 
 from_json(#{bindings := #{method := <<"launch">>}} = Req, BraidCfg = S) ->
@@ -116,6 +128,8 @@ qs_keys_exist(Entries, Req) ->
         false
     end.
 
+get_qs_entry(<<"format">> = Key, Qs) ->
+    proplists:get_value(Key, uri_string:dissect_query(Qs), undefined);
 get_qs_entry(Key, Qs) ->
     proplists:get_value(Key, uri_string:dissect_query(Qs)).
 
@@ -127,3 +141,23 @@ check_config(Req) ->
         _ -> error
     catch _:_ -> error
     end.
+
+cors_headers() ->
+    #{
+        <<"access-control-allow-origin">> => <<"http://localhost:5173">>,
+        <<"access-control-allow-methods">> => <<"GET, OPTIONS">>,
+        <<"access-control-allow-headers">> => <<"authorization, fly-force-instance-id">>
+    }.
+
+maybe_reformat_rpc(undefined, CID, M, F, A) ->
+    {CID, M, F, A};
+maybe_reformat_rpc(_, CID, M, F, A) ->
+    {ok, Tokens, _} = erl_scan:string(binary_to_list(A) ++ "."),
+    {ok, Term} = erl_parse:parse_term(Tokens),
+    BinArgs = base64:encode(term_to_binary(Term)),
+    {
+        CID,
+        base64:encode(term_to_binary(binary_to_atom(M))),
+        base64:encode(term_to_binary(binary_to_atom(F))),
+        BinArgs
+    }.

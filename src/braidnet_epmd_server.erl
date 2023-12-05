@@ -155,7 +155,7 @@ handle_cast(Msg, S) ->
 handle_info({'DOWN', _MonitorRef, process, Pid, _Info},
             #state{ports_in_use = Ports} = S) ->
     #{Pid := Port}  = Ports,
-    ?LOG_DEBUG("EPMD server deleting reservation of ~p for port ~p.", [Pid, Port]),
+    ?LOG_DEBUG("EPMD server deleting port reservation of ~p for pid ~p.", [Port, Pid]),
     {noreply, S#state{ports_in_use = maps:remove(Pid, Ports)}};
 handle_info(Msg, S) ->
     ?LOG_ERROR("Unexpected info msg: ~p",[Msg]),

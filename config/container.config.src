@@ -6,6 +6,7 @@
     {docker_trust, false} % defaults to true
   ]},
   {kernel,[
+      {start_pg, true},
       {logger_level, ${LOG_LEVEL:-notice}},
       {logger, [
         {handler, default, logger_std_h, #{

@@ -45,6 +45,7 @@ routes(_) ->
             {"/braidnode", braidnet_braidnode_api, []}
         ]},
         {'_', [
+            {"/api/monitor", braidnet_monitor_ws_api, []},
             {"/api/[:method]", braidnet_braid_rest_api, []},
             {"/hc", braidnet_healthcheck, []}
         ]}
