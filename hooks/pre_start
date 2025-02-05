@@ -1,14 +1,28 @@
 #!/bin/ash
 
+check_error() {
+    local code="${1:-1}"
+    local message="${2:-"Unknown Error"}"
+    if [ "${code}" -ne 0 ]; then
+        echo "Error: ${message} (${code})" >&2
+        exit ${code}
+    fi
+}
+
+BRAIDCERT_DOMAIN=$(echo "$BRAIDCERT_CSR_URL" | sed -e 's|https://||' -e 's|/.*||')
+BRAIDCERT_CA_URL="https://${BRAIDCERT_DOMAIN}/ca"
 
 # Get the Braidcert CA:
-curl \
-    -X GET https://braidcert.fly.dev/ca \
+curl --fail \
+    -X GET "${BRAIDCERT_CA_URL}" \
     -H "Authorization: Bearer ${BRAIDCERT_KEY}" \
     >> certs/braidcert.CA.pem
+check_error $? "Failed to get BraidCert CA"
+
 
 # Generate a private key for the signing request:
 openssl genrsa -out certs/braidnet.key 4096
+check_error $? "Failed to generate private key"
 
 # Generate a certificate signing request for this Braidnet instance:
 openssl req \
@@ -17,14 +31,16 @@ openssl req \
     -key certs/braidnet.key \
     -addext subjectAltName=DNS.0:"${FLY_MACHINE_ID}" \
     -out certs/braidnet.csr
+check_error $? "Failed to generate CSR"
 
 # Send the request to Braidcert and save the resulting certificate:
-curl \
-    -X PUT https://braidcert.fly.dev/csr/"${FLY_MACHINE_ID}" \
+curl --fail \
+    -X PUT "${BRAIDCERT_CSR_URL}/${FLY_MACHINE_ID}" \
     -H "Authorization: Bearer ${BRAIDCERT_KEY}" \
     -H "Content-Type: application/octet-stream" \
     --data-binary "@certs/braidnet.csr" \
     >> certs/braidnet.pem
+check_error $? "Failed to get BraidCert certificate"
 
 # Remove the request file:
-rm certs/braidnet.csr
+rm -f certs/braidnet.csr

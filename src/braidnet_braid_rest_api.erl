@@ -95,8 +95,14 @@ to_json(#{bindings := #{method := <<"rpc">>}, qs := Qs} = Req, S) ->
     M = get_qs_entry(<<"m">>, Qs),
     F = get_qs_entry(<<"f">>, Qs),
     A = get_qs_entry(<<"args">>, Qs),
-    Result = braidnet:rpc(CID, M, F, A),
-    {json_encode(Result), Req, S}.
+    case braidnet:rpc(CID, M, F, A) of
+        {ok, Result} ->
+            {json_encode(Result), Req, S};
+        {error, Reason} ->
+            ErrorMsg = base64:encode(iolist_to_binary(io_lib:format("~p",[Reason]))),
+            Req2 = cowboy_req:reply(400, #{}, ErrorMsg, Req),
+            {stop, Req2, S}
+    end.
 
 from_json(#{bindings := #{method := <<"launch">>}} = Req, BraidCfg = S) ->
     braidnet:launch_configuration(BraidCfg),

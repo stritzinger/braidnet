@@ -5,8 +5,8 @@
 -export([notify/2]).
 -export([notify/3]).
 
+-export([request/2]).
 -export([request/3]).
--export([request/4]).
 
 -behaviour(cowboy_websocket).
 
@@ -31,12 +31,19 @@ notify(Pid, Method) ->
 notify(Pid, Method, Params) ->
     Pid ! {notify, Method, Params}.
 
-request(Pid, Caller, Method) ->
-    request(Pid, Caller, Method, undefined).
+request(Pid, Method) ->
+    request(Pid, Method, undefined).
 
-request(Pid, Caller, Method, Params) ->
-    Pid ! {request, Caller, Method, Params},
-    receive {Pid, Msg} -> Caller ! Msg end.
+request(Pid, Method, Params) ->
+    MonRef = erlang:monitor(process, Pid),
+    Pid ! {request, self(), MonRef, Method, Params},
+    receive
+        {Pid, MonRef, Result} ->
+            erlang:demonitor(MonRef, [flush]),
+            Result;
+        {'DOWN', MonRef, process, Pid, Reason} ->
+            {error, Reason}
+    end.
 
 %--- WS Callbacks --------------------------------------------------------------
 
@@ -88,14 +95,14 @@ websocket_handle(_Frame, State) ->
 websocket_info({notify, Method, Params}, State) ->
     JsonRPC = braidnet_jsonrpc:notification(Method, Params),
     {[{binary, JsonRPC}], State};
-websocket_info({request, Caller, Method, undefined}, #state{pending_requests = Map} = S) ->
+websocket_info({request, Caller, Ref, Method, undefined}, #state{pending_requests = Map} = S) ->
     ID = id(),
     JsonRPC = braidnet_jsonrpc:call(Method, ID),
-    {[{binary, JsonRPC}], S#state{pending_requests = Map#{ID => Caller}}};
-websocket_info({request, Caller, Method, Params}, #state{pending_requests = Map} = S) ->
+    {[{binary, JsonRPC}], S#state{pending_requests = Map#{ID => {Caller, Ref}}}};
+websocket_info({request, Caller, Ref, Method, Params}, #state{pending_requests = Map} = S) ->
     ID = id(),
     JsonRPC = braidnet_jsonrpc:call(Method, Params, ID),
-    {[{binary, JsonRPC}], S#state{pending_requests = Map#{ID => Caller}}};
+    {[{binary, JsonRPC}], S#state{pending_requests = Map#{ID => {Caller, Ref}}}};
 websocket_info(Info, State) ->
     ?LOG_WARNING("Unexpected info: ~p", [Info]),
     {ok, State}.
@@ -121,13 +128,13 @@ handle_notification(_CID, Method, _Params) ->
     ?LOG_WARNING("Unhandled jsonrpc notification method ~p",[Method]).
 
 handle_response({result, Result, ID}, #state{pending_requests = Preqs} = S) ->
-    #{ID := Caller} = Preqs,
-    Caller ! {self(), Result},
+    #{ID := {Caller, Ref}} = Preqs,
+    Caller ! {self(), Ref, {ok, Result}},
     S#state{pending_requests = maps:remove(ID, Preqs)};
-handle_response({error, _, _, _, ID} = Error,
+handle_response({error, Code, Message, Extra, ID},
                 #state{pending_requests = Preqs} = S) ->
-    #{ID := Caller} = Preqs,
-    Caller ! {self(), Error},
+    #{ID := {Caller, Ref}} = Preqs,
+    Caller ! {self(), Ref, {error, {Code, Message, Extra}}},
     S#state{pending_requests = maps:remove(ID, Preqs)}.
 
 id() -> uuid:uuid_to_string(uuid:get_v4(), binary_standard).
