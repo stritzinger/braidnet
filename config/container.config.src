@@ -1,7 +1,7 @@
 [
   {braidnet, [
     {rest_api_token, <<"${AUTH_TOKEN}">>},
-    {braidcert_url, "https://braidcert.fly.dev/csr/"},
+    {braidcert_url, "${BRAIDCERT_CSR_URL:-https://braidcert.fly.dev/csr/}"},
     {braidcert_key, "${BRAIDCERT_KEY}"},
     {docker_trust, false} % defaults to true
   ]},

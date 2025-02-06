@@ -74,13 +74,26 @@ list() ->
 logs(CID) ->
     braidnet_orchestrator:logs(CID).
 
-rpc(CID, M, F, A) ->
+rpc(CID, M, F, A)
+  when is_atom(M), is_atom(F), is_list(A) orelse A =:= undefined ->
+    M2 = base64:encode(term_to_binary(M)),
+    F2 = base64:encode(term_to_binary(F)),
+    A2 = case A =:= undefined of
+        true -> undefined;
+        false -> base64:encode(term_to_binary(A))
+    end,
+    case rpc(CID, M2, F2, A2) of
+        {ok, Result} -> binary_to_term(base64:decode(Result));
+        {error, _Reason} = Error -> Error
+    end;
+rpc(CID, M, F, A)
+  when is_binary(M), is_binary(F), is_binary(A) orelse A =:= undefined ->
     case braidnet_orchestrator:get_ws_pid(CID) of
         undefined ->
-            base64:encode("no_connection");
+            {error, no_connection};
         Pid ->
             Params = #{m => M, f => F, a => A},
-            braidnet_braidnode_api:request(Pid, self(), rpc, Params)
+            braidnet_braidnode_api:request(Pid, rpc, Params)
     end.
 
 remove_configuration(NodesMap) ->

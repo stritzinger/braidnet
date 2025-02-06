@@ -88,7 +88,7 @@ COPY --from=releaser /opt/rel .
 
 # Alias remote shell script under a single command
 RUN touch ~/.profile && \
-    printf "%s\n" "alias remshell='/opt/braidnet/bin/braidnet remote_console'" \
+    printf "%s\n" 'alias remshell='\''/opt/braidnet/erts-*/bin/erl -boot $(find /opt/braidnet/releases -type f -name start_clean.boot | sed "s/\.boot$//") -setcookie cookie -proto_dist inet6_tls -ssl_dist_optfile lib/braidnet-*/priv/prod.ssl_dist_opts.rel -sname console -remsh braidnet@$(hostname)'\''' \
     >> ~/.profile
 
 EXPOSE 80/tcp
