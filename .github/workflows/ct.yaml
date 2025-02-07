@@ -1,14 +1,14 @@
 name: Run tests on Fly.io
 on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
-    types:
-      - opened
-      - synchronize
+  # push:
+  #   branches:
+  #     - main
+  # pull_request:
+  #   branches:
+  #     - main
+  #   types:
+  #     - opened
+  #     - synchronize
   workflow_dispatch:
 
 env:
