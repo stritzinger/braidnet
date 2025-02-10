@@ -29,7 +29,7 @@ openssl req \
     -new \
     -config certs/cfg/braidnet.cfg \
     -key certs/braidnet.key \
-    -addext subjectAltName=DNS.0:"${FLY_MACHINE_ID}" \
+    -addext "subjectAltName=DNS.0:${FLY_MACHINE_ID}, DNS.1:${FLY_APP_NAME}.fly.dev" \
     -out certs/braidnet.csr
 check_error $? "Failed to generate CSR"
 
