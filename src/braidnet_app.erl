@@ -14,10 +14,10 @@
 start(_StartType, _StartArgs) ->
     braidnet_cluster:start(),
     %---
-    Port = application:get_env(braidnet, port, 8080),
+    {ok, Port} = application:get_env(braidnet, api_port),
     HostEnv = braidnet_cluster:host_environment(),
     Dispatch = cowboy_router:compile(routes(HostEnv)),
-    {ok, _} = cowboy:start_clear(example, [{port, Port}], #{
+    {ok, _} = cowboy:start_clear(example, [{port, list_to_integer(Port)}], #{
         env => #{dispatch => Dispatch}
     }),
     %---

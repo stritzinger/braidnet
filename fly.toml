@@ -13,6 +13,7 @@ kill_timeout = "5s"
 
 [env]
   LOG_LEVEL = "debug"
+  BRAIDNET_API_PORT = "9090"
 
 [http_service]
   internal_port = 8080
@@ -28,6 +29,6 @@ kill_timeout = "5s"
     interval = "5s"
     method = "get"
     path = "/hc"
-    port = 8080
+    port = 9090
     timeout = "2s"
     type = "http"
