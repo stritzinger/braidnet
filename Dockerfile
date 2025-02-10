@@ -9,6 +9,8 @@ FROM erlang:$erlang_version-alpine as builder
 WORKDIR /app/src
 ENV REBAR_BASE_DIR /app/_build
 
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.ustc.edu.cn/' /etc/apk/repositories
+
 # Install git for fetching non-hex depenencies.
 # Add any other Alpine libraries needed to compile the project here.
 # See https://wiki.alpinelinux.org/wiki/Local_APK_cache for details
