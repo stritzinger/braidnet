@@ -17,8 +17,20 @@ start(_StartType, _StartArgs) ->
     {ok, Port} = application:get_env(braidnet, api_port),
     HostEnv = braidnet_cluster:host_environment(),
     Dispatch = cowboy_router:compile(routes(HostEnv)),
-    {ok, _} = cowboy:start_clear(example, [{port, list_to_integer(Port)}], #{
-        env => #{dispatch => Dispatch}
+    {ok, _} = cowboy:start_clear(healthcheck, [{port, 9080}],
+        #{env =>
+            #{dispatch =>
+                cowboy_router:compile([{'_', [{"/hc", braidnet_healthcheck, []}]}])
+            }
+        }
+    ),
+    {ok, _} = cowboy:start_tls(example,
+        [
+            {port, list_to_integer(Port)},
+            {certfile, "/opt/braidnet/certs/braidnet.pem"},
+            {keyfile, "/opt/braidnet/certs/braidnet.key"}
+        ],
+        #{env => #{dispatch => Dispatch}
     }),
     %---
     ?LOG_DEBUG("Starting the docker daemon..."),
