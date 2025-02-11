@@ -29,6 +29,6 @@ kill_timeout = "5s"
     interval = "5s"
     method = "get"
     path = "/hc"
-    port = 9090
+    port = 9080
     timeout = "2s"
     type = "http"
