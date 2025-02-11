@@ -3,6 +3,7 @@
     {rest_api_token, <<"${AUTH_TOKEN}">>},
     {braidcert_url, "${BRAIDCERT_CSR_URL:-https://braidcert.fly.dev/csr/}"},
     {braidcert_key, "${BRAIDCERT_KEY}"},
+    {api_port, "${BRAIDNET_API_PORT:-8080}"},
     {docker_trust, false} % defaults to true
   ]},
   {kernel,[
