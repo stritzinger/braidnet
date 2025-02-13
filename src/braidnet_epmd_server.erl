@@ -31,7 +31,7 @@
 -type nodenamehost() :: binary().
 %-------------------------------------------------------------------------------
 % We use this port range, realistically we will never spawn so many containers
--define(PORTS_RANGE, {50_000, 60_000}).
+-define(PORTS_RANGE, {50_100, 50_199}).
 %-------------------------------------------------------------------------------
 -record(state, {
     %Map storing tcp port numbers reservations
