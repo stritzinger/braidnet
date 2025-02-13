@@ -94,6 +94,9 @@ RUN touch ~/.profile && \
     >> ~/.profile
 
 EXPOSE 80/tcp
+EXPOSE 4369/tcp
+EXPOSE 50000/tcp
+EXPOSE 50100/tcp
 
 ENTRYPOINT ["/opt/braidnet/bin/braidnet"]
 CMD ["foreground"]
