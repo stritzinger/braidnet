@@ -5,7 +5,8 @@
 -export([init/1,
          handle_call/3,
          handle_cast/2,
-         handle_info/2]).
+         handle_info/2,
+         terminate/2]).
 
 % External API
 -export([start_link/3]).
@@ -54,11 +55,14 @@ handle_info({Port, {exit_status, Code}}, #state{cid = CID, port = Port} = S) ->
     Reason = evaluate_exit_code(Code),
     ?LOG_DEBUG("Container ~p, terminated with code ~p for reason: ~p",
               [CID, Code, Reason]),
-    braidnet_orchestrator:disconnect(CID),
     {stop, Reason, S};
 handle_info(Msg, S) ->
     ?LOG_ERROR("Unexpected info: ~p",[Msg]),
     {noreply, S}.
+
+terminate(_Reason, #state{cid = CID}) ->
+    braidnet_cert:delete_braidnode_certfiles(CID),
+    braidnet_orchestrator:disconnect(CID).
 
 % INTERNAL ---------------------------------------------------------------------
 
