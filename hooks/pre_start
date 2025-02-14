@@ -25,11 +25,15 @@ openssl genrsa -out certs/braidnet.key 4096
 check_error $? "Failed to generate private key"
 
 # Generate a certificate signing request for this Braidnet instance:
+# Alternative names are there for:
+# - FLY_MACHINE_ID used from other mahines in fly 6PN network
+# - FLY_APP_NAME.fly.dev used from machines outside of Fly.io
+# - localhost used by all local braidnode instances
 openssl req \
     -new \
     -config certs/cfg/braidnet.cfg \
     -key certs/braidnet.key \
-    -addext "subjectAltName=DNS.0:${FLY_MACHINE_ID}, DNS.1:${FLY_APP_NAME}.fly.dev" \
+    -addext "subjectAltName=DNS.0:${FLY_MACHINE_ID}, DNS.1:${FLY_APP_NAME}.fly.dev, DNS.2:localhost" \
     -out certs/braidnet.csr
 check_error $? "Failed to generate CSR"
 
