@@ -93,6 +93,10 @@ RUN touch ~/.profile && \
     printf "%s\n" 'alias remshell='\''/opt/braidnet/erts-*/bin/erl -boot $(find /opt/braidnet/releases -type f -name start_clean.boot | sed "s/\.boot$//") -setcookie cookie -proto_dist inet6_tls -ssl_dist_optfile lib/braidnet-*/priv/prod.ssl_dist_opts.rel -sname console -remsh braidnet@$(hostname)'\''' \
     >> ~/.profile
 
+# Note:
+# Exposing these ports do not affects the Fly.io deployment,
+# this is just for development or convenience,
+# in case braidnet is runned as container locally.
 EXPOSE 80/tcp
 EXPOSE 4369/tcp
 EXPOSE 50000/tcp
