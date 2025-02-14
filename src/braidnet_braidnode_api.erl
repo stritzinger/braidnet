@@ -108,9 +108,9 @@ websocket_info(Info, State) ->
     ?LOG_WARNING("Unexpected info: ~p", [Info]),
     {ok, State}.
 
-terminate(Reason, _, State = #state{cid = CID}) ->
+terminate(Reason, _, State = #state{cid = CID, epmd_client = Pid}) ->
     ?LOG_DEBUG("WS terminated ~p",[Reason]),
-    stop_epmd(State),
+    stop_epmd(Pid),
     braidnet_orchestrator:disconnect(CID).
 
 % internal ---------------------------------------------------------------------
@@ -183,6 +183,6 @@ forward_epmd(State = #state{epmd_client = undefined}, Name, PortNo) ->
     {ok, _} = gen_server:call(Pid, {register, binary_to_list(Name), PortNo, inet}, infinity),
     State#state{epmd_client = Pid}.
 
-stop_epmd(State = #state{epmd_client = Pid}) ->
-    gen_server:call(Pid, stop, infinity),
-    State#state{epmd_client = undefined}.
+stop_epmd(undefined) -> ok;
+stop_epmd(Pid) when is_pid(Pid) ->
+    gen_server:call(Pid, stop, infinity).
