@@ -176,7 +176,7 @@ call_method(State, _, _, _) ->
 
 forward_epmd(State = #state{epmd_client = undefined}, Name, PortNo) ->
     % Start a new erlang epm_server connection to local EPMD daemon for this node
-    % We do it here because if the node disconnect, it will disconnecte from EPMD
+    % We do it here because if the node disconnects, it will disconnect from EPMD
     % too and unregister the node.
     ?LOG_INFO("Starting extra EPMD process for ~p on port ~p linked to ~p", [Name, PortNo, self()]),
     {ok, Pid} = gen_server:start_link(erl_epmd, [], []),
