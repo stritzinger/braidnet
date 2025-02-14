@@ -20,7 +20,7 @@
 
 -record(state, {
     cid,
-    epmd,
+    epmd_client,
     pending_requests = #{} % outgoing requests to braidnode
 }).
 
@@ -174,7 +174,7 @@ call_method(State, _, _, _) ->
 
 %--- Custom EPMD API -----------------------------------------------------------
 
-forward_epmd(State = #state{epmd = undefined}, Name, PortNo) ->
+forward_epmd(State = #state{epmd_client = undefined}, Name, PortNo) ->
     % Start a new erlang epm_server connection to local EPMD daemon for this node
     % We do it here because if the node disconnect, it will disconnecte from EPMD
     % too and unregister the node.
@@ -183,8 +183,8 @@ forward_epmd(State = #state{epmd = undefined}, Name, PortNo) ->
     register(node_erl_epmd, Pid),
     register(node_connection, self()),
     {ok, _} = gen_server:call(Pid, {register, binary_to_list(Name), PortNo, inet}, infinity),
-    State#state{epmd = Pid}.
+    State#state{epmd_client = Pid}.
 
-stop_epmd(State = #state{epmd = Pid}) ->
+stop_epmd(State = #state{epmd_client = Pid}) ->
     gen_server:call(Pid, stop, infinity),
-    State#state{epmd = undefined}.
+    State#state{epmd_client = undefined}.
