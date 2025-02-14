@@ -180,8 +180,6 @@ forward_epmd(State = #state{epmd_client = undefined}, Name, PortNo) ->
     % too and unregister the node.
     ?LOG_INFO("Starting extra EPMD process for ~p on port ~p linked to ~p", [Name, PortNo, self()]),
     {ok, Pid} = gen_server:start_link(erl_epmd, [], []),
-    register(node_erl_epmd, Pid),
-    register(node_connection, self()),
     {ok, _} = gen_server:call(Pid, {register, binary_to_list(Name), PortNo, inet}, infinity),
     State#state{epmd_client = Pid}.
 
