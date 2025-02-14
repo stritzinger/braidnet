@@ -3,7 +3,7 @@
 #--- Builder -------------------------------------------------------------------
 
 ARG profile=container
-ARG erlang_version=25.3.2.2
+ARG erlang_version=27
 FROM erlang:$erlang_version-alpine as builder
 
 WORKDIR /app/src
