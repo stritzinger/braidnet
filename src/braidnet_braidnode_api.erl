@@ -162,9 +162,9 @@ call_method(State, <<"names">>, #{<<"node">> := Node, <<"host">> := Host},
 call_method(State, <<"sign">>,
             #{<<"payload">> := Payload,
               <<"hash_alg">> := HashAlg,
-              <<"sign_alg">> := SignAlg},
+              <<"sign_options">> := SignOpts},
             CID) ->
-    case braidnet_orchestrator:sign(CID, Payload, HashAlg, SignAlg) of
+    case braidnet_orchestrator:sign(CID, Payload, HashAlg, SignOpts) of
         {error, E} -> {#{error => E}, State};
         Binary -> {Binary, State}
     end;

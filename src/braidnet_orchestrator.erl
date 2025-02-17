@@ -78,8 +78,8 @@ log(ContainerID, Text) ->
 event(ContainerID, Event) ->
     gen_server:cast(?MODULE, {?FUNCTION_NAME, ContainerID, Event}).
 
-sign(ContainerID, Payload, HashAlg, SignAlg) ->
-    gen_server:call(?MODULE, {?FUNCTION_NAME, ContainerID, Payload, HashAlg, SignAlg}).
+sign(ContainerID, Payload, HashAlg, SignOpts) ->
+    gen_server:call(?MODULE, {?FUNCTION_NAME, ContainerID, Payload, HashAlg, SignOpts}).
 
 % gen_server callbacks ---------------------------------------------------------
 
@@ -137,11 +137,11 @@ handle_call({delete, NodeName}, _, #state{containers = CTNs} = S) ->
     end,
     {reply, ok, S#state{containers = maps:from_list(Rest)}};
 
-handle_call({sign, CID, Payload, HashAlg, SignAlg}, _,
+handle_call({sign, CID, Payload, HashAlg, OptionMap}, _,
             #state{containers = CTNs} = S) ->
     case CTNs of
         #{CID := #container{node_name = _N}} ->
-            Result = sign_container_payload(CID, Payload, HashAlg, SignAlg),
+            Result = sign_container_payload(CID, Payload, HashAlg, OptionMap),
             {reply, Result, S};
         _ -> {reply, {error, unknown_container}, S}
     end;
@@ -218,19 +218,28 @@ handle_info(Msg, S) ->
 store_connections(Node, #{<<"connections">> := Connections}) ->
     braidnet_epmd_server:store_connections(Node, Connections).
 
-sign_container_payload(CID, Payload, <<"sha512">>, <<"rsa_pss_rsae">>) ->
+sign_container_payload(CID, Payload, <<"sha512">>, SignOpts) ->
     try
         Binary = erlang:binary_to_term(base64:decode(Payload)),
         Key = get_key(CID),
-        Opts = [{rsa_padding, rsa_pkcs1_pss_padding},
-                {rsa_pss_saltlen, -1},
-                {rsa_mgf1_md, sha512}],
-        Signature = public_key:sign(Binary, sha512, Key, Opts),
+        OptionList = [parse_sign_option(Opt) || Opt <- maps:to_list(SignOpts)],
+        Signature = public_key:sign(Binary, sha512, Key, OptionList),
         base64:encode(erlang:term_to_binary(Signature))
     catch error:E ->
         ?LOG_ERROR("Error signing key: ~p", [E]),
         {error, E}
     end.
+
+parse_sign_option({Name, Value}) ->
+    Atom = binary_to_existing_atom(Name),
+    {Atom, parse_sign_opt_val(Atom, Value)}.
+
+parse_sign_opt_val(rsa_mgf1_md, V) when is_binary(V) ->
+    binary_to_existing_atom(V);
+parse_sign_opt_val(rsa_padding, V) when is_binary(V) ->
+    binary_to_existing_atom(V);
+parse_sign_opt_val(rsa_pss_saltlen, V) when is_integer(V) -> V;
+parse_sign_opt_val(_Atom, V) -> V.
 
 get_key(CID) ->
     KeyFile = braidnet_cert:get_private_key_file(CID),
