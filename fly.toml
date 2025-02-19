@@ -23,6 +23,27 @@ kill_timeout = "5s"
     hard_limit = 250
     soft_limit = 200
 
+[[services]]
+  internal_port = 4369
+  protocol = "tcp"
+
+  [[services.ports]]
+      port = 4369
+
+[[services]]
+  internal_port = 50000
+  protocol = "tcp"
+
+  [[services.ports]]
+      port = 50000
+
+[[services]]
+  internal_port = 50100
+  protocol = "tcp"
+
+  [[services.ports]]
+      port = 50100
+
 [checks]
   [checks.healthcheck]
     grace_period = "10s"

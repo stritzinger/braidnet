@@ -1,15 +1,22 @@
 [
     {server, [
         {cacertfile, "/opt/braidnet/certs/braidcert.CA.pem"},
-        {certfile, "/opt/braidnet/certs/braidnet.pem"},
-        {keyfile, "/opt/braidnet/certs/braidnet.key"},
+        {certs_keys, [
+            #{certfile =>  "/opt/braidnet/certs/braidnet.pem",
+              keyfile => "/opt/braidnet/certs/braidnet.key"
+            }
+        ]},
         {verify, verify_peer},
-        {secure_renegotiate, true}
+        {secure_renegotiate, true},
+        {fail_if_no_peer_cert, true}
     ]},
     {client, [
         {cacertfile, "/opt/braidnet/certs/braidcert.CA.pem"},
-        {certfile, "/opt/braidnet/certs/braidnet.pem"},
-        {keyfile, "/opt/braidnet/certs/braidnet.key"},
+        {certs_keys, [
+            #{certfile =>  "/opt/braidnet/certs/braidnet.pem",
+              keyfile => "/opt/braidnet/certs/braidnet.key"
+            }
+        ]},
         {verify, verify_peer},
         {secure_renegotiate, true}
     ]}

@@ -2,3 +2,5 @@
 -setcookie cookie
 -proto_dist inet6_tls
 -ssl_dist_optfile "lib/braidnet-0.2.0/priv/prod.ssl_dist_opts.rel"
+-kernel inet_dist_listen_min 50000
+-kernel inet_dist_listen_max 50000

@@ -20,6 +20,7 @@
 
 -record(state, {
     cid,
+    epmd_client,
     pending_requests = #{} % outgoing requests to braidnode
 }).
 
@@ -72,7 +73,7 @@ websocket_init(#state{cid = CID} = S) ->
 websocket_handle({binary, Binary}, #state{cid = CID} = State) ->
     case braidnet_jsonrpc:decode(Binary) of
         {call, Method, Params, ID} ->
-            {handle_request(CID, Method, Params, ID), State};
+            handle_request(State, CID, Method, Params, ID);
         {notification, Method, Params} ->
             handle_notification(CID, Method, Params),
             {ok, State};
@@ -89,7 +90,7 @@ websocket_handle(Frame = {text, Text}, State) ->
 websocket_handle(_Frame, State) ->
     {ok, State}.
 
- websocket_info({notify, Method, undefined}, State) ->
+websocket_info({notify, Method, undefined}, State) ->
     JsonRPC = braidnet_jsonrpc:notification(Method),
     {[{binary, JsonRPC}], State};
 websocket_info({notify, Method, Params}, State) ->
@@ -107,22 +108,25 @@ websocket_info(Info, State) ->
     ?LOG_WARNING("Unexpected info: ~p", [Info]),
     {ok, State}.
 
-terminate(Reason, _, #state{cid = CID}) ->
+terminate(Reason, _, #state{cid = CID, epmd_client = Pid}) ->
     ?LOG_DEBUG("WS terminated ~p",[Reason]),
+    stop_epmd(Pid),
     braidnet_orchestrator:disconnect(CID).
 
 % internal ---------------------------------------------------------------------
 
-handle_request(CID, Method,  Params, ID) ->
-    JSON =
-    try call_method(Method, Params, CID) of
-        undefined ->  braidnet_jsonrpc:error(method_not_found, ID);
-        Result -> braidnet_jsonrpc:result(Result, ID)
-    catch Ex:Er:Stack ->
-        ?LOG_ERROR("JsonRPC internal error ~p : ~p : ~p",[Ex, Er, Stack]),
-        braidnet_jsonrpc:error(internal_error, ID)
-    end,
-    [{binary, JSON}].
+handle_request(State, CID, Method,  Params, ID) ->
+    {JSON, FinalState} =
+        try call_method(State, Method, Params, CID) of
+            {undefined, State2} ->
+                {braidnet_jsonrpc:error(method_not_found, ID), State2};
+            {Result, State2} ->
+                {braidnet_jsonrpc:result(Result, ID), State2}
+        catch Ex:Er:Stack ->
+            ?LOG_ERROR("JsonRPC internal error ~p : ~p : ~p",[Ex, Er, Stack]),
+            {braidnet_jsonrpc:error(internal_error, ID), State}
+        end,
+    {[{binary, JSON}], FinalState}.
 
 handle_notification(_CID, Method, _Params) ->
     ?LOG_WARNING("Unhandled jsonrpc notification method ~p",[Method]).
@@ -139,30 +143,47 @@ handle_response({error, Code, Message, Extra, ID},
 
 id() -> uuid:uuid_to_string(uuid:get_v4(), binary_standard).
 
-call_method(<<"register_node">>, #{<<"name">> := Name, <<"port">> := Port},
-            _CID) ->
+call_method(#state{epmd_client = undefined} = State, <<"register_node">>,
+            #{<<"name">> := Name, <<"port">> := Port}, _CID) ->
     {ok, Cons} = braidnet_epmd_server:register_node(Name, Port),
-    #{connections => Cons};
-call_method(<<"address_please">>,#{<<"name">> := Name, <<"host">> := Host},
+    Pid = start_epmd(Name, Port),
+    {#{connections => Cons}, State#state{epmd_client = Pid}};
+call_method(State, <<"address_please">>,#{<<"name">> := Name, <<"host">> := Host},
             _CID) ->
     case braidnet_epmd_server:address_please(Name, Host) of
-        {ok, Addr, Port} -> #{address => Addr, port => Port};
-        {error, Reason} -> #{error => Reason}
+        {ok, Addr, Port} -> {#{address => Addr, port => Port}, State};
+        {error, Reason} -> {#{error => Reason}, State}
     end;
-call_method(<<"names">>, #{<<"node">> := Node, <<"host">> := Host},
+call_method(State, <<"names">>, #{<<"node">> := Node, <<"host">> := Host},
             _CID) ->
     case braidnet_epmd_server:names(Node, Host) of
-        {ok, Map} -> Map;
-        {error, Reason} -> #{error => Reason}
+        {ok, Map} -> {Map, State};
+        {error, Reason} -> {#{error => Reason}, State}
     end;
-call_method(<<"sign">>,
+call_method(State, <<"sign">>,
             #{<<"payload">> := Payload,
               <<"hash_alg">> := HashAlg,
-              <<"sign_alg">> := SignAlg},
+              <<"sign_options">> := SignOpts},
             CID) ->
-    case braidnet_orchestrator:sign(CID, Payload, HashAlg, SignAlg) of
-        {error, E} -> #{error => E};
-        Binary -> Binary
+    case braidnet_orchestrator:sign(CID, Payload, HashAlg, SignOpts) of
+        {error, E} -> {#{error => E}, State};
+        Binary -> {Binary, State}
     end;
-call_method(_, _, _) ->
-    undefined.
+call_method(State, _, _, _) ->
+    {undefined, State}.
+
+
+%--- Custom EPMD API -----------------------------------------------------------
+
+start_epmd(Name, PortNo) ->
+    % Start a new erlang epm_server connection to local EPMD daemon for this node
+    % We do it here because if the node disconnects, it will disconnect from EPMD
+    % too and unregister the node.
+    ?LOG_INFO("Starting extra EPMD process for ~p on port ~p linked to ~p", [Name, PortNo, self()]),
+    {ok, Pid} = gen_server:start_link(erl_epmd, [], []),
+    {ok, _} = gen_server:call(Pid, {register, binary_to_list(Name), PortNo, inet}, infinity),
+    Pid.
+
+stop_epmd(undefined) -> ok;
+stop_epmd(Pid) when is_pid(Pid) ->
+    gen_server:call(Pid, stop, infinity).

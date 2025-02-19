@@ -47,8 +47,7 @@ routes(localhost) ->
     [
         {'_', [
             {"/braidnode", braidnet_braidnode_api, []},
-            {"/api/[:method]", braidnet_braid_rest_api, []},
-            {"/hc", braidnet_healthcheck, []}
+            {"/api/[:method]", braidnet_braid_rest_api, []}
         ]}
     ];
 routes(_) ->
@@ -57,7 +56,6 @@ routes(_) ->
             {"/braidnode", braidnet_braidnode_api, []}
         ]},
         {'_', [
-            {"/api/[:method]", braidnet_braid_rest_api, []},
-            {"/hc", braidnet_healthcheck, []}
+            {"/api/[:method]", braidnet_braid_rest_api, []}
         ]}
     ].
