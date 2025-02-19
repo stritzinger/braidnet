@@ -143,10 +143,10 @@ handle_response({error, Code, Message, Extra, ID},
 
 id() -> uuid:uuid_to_string(uuid:get_v4(), binary_standard).
 
-call_method(State, <<"register_node">>, #{<<"name">> := Name, <<"port">> := Port},
-            _CID) ->
+call_method(#state{epmd_client = undefined} = State, <<"register_node">>,
+            #{<<"name">> := Name, <<"port">> := Port}, _CID) ->
     {ok, Cons} = braidnet_epmd_server:register_node(Name, Port),
-    Pid = forward_epmd(State, Name, Port),
+    Pid = start_epmd(Name, Port),
     {#{connections => Cons}, State#state{epmd_client = Pid}};
 call_method(State, <<"address_please">>,#{<<"name">> := Name, <<"host">> := Host},
             _CID) ->
@@ -175,7 +175,7 @@ call_method(State, _, _, _) ->
 
 %--- Custom EPMD API -----------------------------------------------------------
 
-forward_epmd(#state{epmd_client = undefined}, Name, PortNo) ->
+start_epmd(Name, PortNo) ->
     % Start a new erlang epm_server connection to local EPMD daemon for this node
     % We do it here because if the node disconnects, it will disconnect from EPMD
     % too and unregister the node.
