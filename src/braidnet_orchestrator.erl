@@ -218,12 +218,13 @@ handle_info(Msg, S) ->
 store_connections(Node, #{<<"connections">> := Connections}) ->
     braidnet_epmd_server:store_connections(Node, Connections).
 
-sign_container_payload(CID, Payload, <<"sha512">>, SignOpts) ->
+sign_container_payload(CID, Payload, HashType, SignOpts) ->
     try
         Binary = erlang:binary_to_term(base64:decode(Payload)),
         Key = get_key(CID),
+        DigestType = binary_to_existing_atom(HashType),
         OptionList = [parse_sign_option(Opt) || Opt <- maps:to_list(SignOpts)],
-        Signature = public_key:sign(Binary, sha512, Key, OptionList),
+        Signature = public_key:sign(Binary, DigestType, Key, OptionList),
         base64:encode(erlang:term_to_binary(Signature))
     catch error:E ->
         ?LOG_ERROR("Error signing key: ~p", [E]),
