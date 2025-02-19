@@ -7,7 +7,8 @@
             }
         ]},
         {verify, verify_peer},
-        {secure_renegotiate, true}
+        {secure_renegotiate, true},
+        {fail_if_no_peer_cert, true}
     ]},
     {client, [
         {cacertfile, "/opt/braidnet/certs/braidcert.CA.pem"},
