@@ -5,7 +5,8 @@
     get_private_key_file/1,
     get_ca_file/0,
     delete_braidnode_certfiles/1,
-    new_braidnode_cert/1
+    new_braidnode_cert/1,
+    get_stritzinger_ca_file/0
 ]).
 
 get_cert_file(CID) ->
@@ -24,6 +25,13 @@ get_private_key_file(CID) ->
 
 get_ca_file() ->
     File = ca_file_path(),
+    case filelib:is_file(File) of
+        true -> File;
+        false -> throw({not_found, File})
+    end.
+
+get_stritzinger_ca_file() ->
+    File = stritzinger_ca_file_path(),
     case filelib:is_file(File) of
         true -> File;
         false -> throw({not_found, File})
@@ -120,6 +128,10 @@ csr_config_file_path() ->
 ca_file_path() ->
     {ok, Cwd} = file:get_cwd(),
     filename:join([Cwd, "certs", "braidcert.CA.pem"]).
+
+stritzinger_ca_file_path() ->
+    {ok, Cwd} = file:get_cwd(),
+    filename:join([Cwd, "certs", "stritzinger_grisp_CA.pem"]).
 
 cert_dir_path(CID) ->
     {ok, Cwd} = file:get_cwd(),

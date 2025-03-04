@@ -21,3 +21,4 @@ rebar3.crashdump
 fly-personal.toml
 certs/
 !certs/cfg/braidnet.cfg
+!certs/stritzinger_grisp_CA.pem

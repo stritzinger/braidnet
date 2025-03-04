@@ -102,15 +102,17 @@ docker_content_trust_env() ->
 docker_run(Docker, Name, CID, DockerImage, PortNumber) ->
     NodeHost = braidnet_cluster:this_nodehost(),
     StringCID = binary_to_list(CID),
-    CA = braidnet_cert:get_ca_file(),
-    Cert = braidnet_cert:new_braidnode_cert(StringCID),
+    BraidCA = braidnet_cert:get_ca_file(),
+    StritzingerGrispCA = braidnet_cert:get_stritzinger_ca_file(),
+    BriadCert = braidnet_cert:new_braidnode_cert(StringCID),
     PortSettings = [
         {env,[docker_content_trust_env()]},
         {args, [
             "run",
             "--rm",
-            "-v", CA ++ ":/mnt/certs/braidcert.CA.pem",
-            "-v", Cert ++ ":/mnt/certs/braidnode.pem",
+            "-v", BraidCA ++ ":/mnt/certs/braidcert.CA.pem",
+            "-v", StritzingerGrispCA ++ ":/mnt/certs/stritzinger_grisp_CA.pem",
+            "-v", BriadCert ++ ":/mnt/certs/braidnode.pem",
             "--env", "CID=" ++ StringCID,
             "--env", "NODE_NAME=" ++ binary_to_list(Name),
             "--env", "NODE_HOST=" ++ binary_to_list(NodeHost),
