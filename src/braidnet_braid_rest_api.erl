@@ -48,11 +48,6 @@ malformed_request(#{bindings := #{method := <<"rpc">>}}= Req, S) ->
         false -> {true, Req, S};
         true -> {false, Req, S}
     end;
-malformed_request(#{bindings := #{method := <<"certificate">>}} = Req, S) ->
-    case qs_keys_exist([cid], Req) of
-        false -> {true, Req, S};
-        true -> {false, Req, S}
-    end;
 malformed_request(Req, S) ->
     case check_config(Req) of
         {ok, Cfg} -> {false, Req, Cfg};
@@ -60,7 +55,7 @@ malformed_request(Req, S) ->
     end.
 
 resource_exists(#{bindings := #{method := M}, qs := Qs} = Req, State)
-when M == <<"logs">> orelse M == <<"rpc">> orelse M == <<"certificate">> ->
+when M == <<"logs">> orelse M == <<"rpc">> ->
     CID = get_qs_entry(<<"cid">>, Qs),
     case braidnet_orchestrator:verify(CID) of
         ok -> {true, Req, State};
@@ -94,11 +89,6 @@ to_json(#{bindings := #{method := <<"list">>}} = Req, S) ->
 to_json(#{bindings := #{method := <<"logs">>}, qs := Qs} = Req, S) ->
     CID = get_qs_entry(<<"cid">>, Qs),
     Result = braidnet:logs(CID),
-    {json_encode(Result), Req, S};
-to_json(#{bindings := #{method := <<"certificate">>}, qs := Qs} = Req, S) ->
-    CID = get_qs_entry(<<"cid">>, Qs),
-    Cert = braidnet:certificate(CID),
-    Result = #{cert => base64:encode(Cert)},
     {json_encode(Result), Req, S};
 to_json(#{bindings := #{method := <<"rpc">>}, qs := Qs} = Req, S) ->
     CID = get_qs_entry(<<"cid">>, Qs),
