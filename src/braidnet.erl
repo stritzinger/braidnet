@@ -10,6 +10,7 @@
 -export([launch_configuration/1]).
 -export([list/0]).
 -export([logs/1]).
+-export([certificate/1]).
 -export([rpc/4]).
 -export([remove_configuration/1]).
 
@@ -73,6 +74,11 @@ list() ->
 
 logs(CID) ->
     braidnet_orchestrator:logs(CID).
+
+certificate(CID) ->
+    File = braidnet_cert:get_cert_file(CID),
+    {ok, Cert} = file:read_file(File),
+    Cert.
 
 rpc(CID, M, F, A)
   when is_atom(M), is_atom(F), is_list(A) orelse A =:= undefined ->
