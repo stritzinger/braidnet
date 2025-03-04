@@ -1,7 +1,7 @@
 -module(braidnet_cert).
 
 -export([
-    get_cert_file/1,
+    get_braidnode_cert_file/1,
     get_private_key_file/1,
     get_ca_file/0,
     delete_braidnode_certfiles/1,
@@ -9,7 +9,7 @@
     get_stritzinger_ca_file/0
 ]).
 
-get_cert_file(CID) ->
+get_braidnode_cert_file(CID) ->
     File = cert_file_path(CID),
     case filelib:is_file(File) of
         true -> File;

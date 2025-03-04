@@ -38,7 +38,8 @@
     image               :: binary(),
     status              :: starting | broken | running | lost,
     logs = ""           :: string(),
-    last_down_time      :: integer()
+    last_down_time      :: integer(),
+    certificate         :: binary() | undefined
 }).
 
 -record(state, {
@@ -98,8 +99,10 @@ handle_call(list, _, #state{containers = CTNs} = S) ->
     [#{id => ID,
        name => Name,
        image => Image,
-       status => Status} ||
-        {ID, #container{node_name = Name, image = Image, status = Status}}
+       status => Status,
+       certificate => Cert} ||
+        {ID, #container{node_name = Name, image = Image,
+                        status = Status, certificate = Cert}}
             <- maps:to_list(CTNs)],
     {reply, List, S};
 
@@ -167,7 +170,10 @@ handle_cast({connect, CID, WSPid}, #state{containers = CTNs} = S) ->
     ElapsedTime = erlang:monotonic_time() - LastDownTime,
     StartupTime = erlang:convert_time_unit(ElapsedTime, native, second),
     ?LOG_NOTICE("Node ~p enstablished WS connection. In ~p seconds", [N, StartupTime]),
-    Container = CTN#container{ws_pid = WSPid, status = running},
+    % Certificate changes at each restart so we fetch it at connection
+    CertFile = braidnet_cert:get_braidnode_cert_file(CID),
+    {ok, Cert} = file:read_file(CertFile),
+    Container = CTN#container{ws_pid = WSPid, status = running, certificate = Cert},
     NewMap = maps:update(CID, Container, CTNs),
     {noreply, S#state{containers = NewMap}};
 
