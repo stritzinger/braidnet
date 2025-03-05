@@ -63,10 +63,23 @@ test_node_fly(RemoteMachine) ->
 instances() ->
     [list_to_binary(M) || M <- braidnet_cluster:fly_machines()].
 
+-spec launch_configuration(Config) -> term() when
+    Config       :: #{HostName :: binary() := NodeConfigs},
+    NodeConfigs  :: #{NodeName :: binary() := NodeConfig},
+    NodeConfig   :: #{
+        % key <<"image">>:
+        Image       :: binary() := binary(),
+        % key <<"epmd_port">>:
+        EpmdPort    :: binary() := binary(),
+        % key <<"connections">>:
+        Connections :: binary() := [binary()],
+        % key <<"envs">>:
+        Envs        :: binary() => [{Key :: binary(), Value :: binary()}]
+    }.
 launch_configuration(NodesMap) ->
     ThisHost = braidnet_cluster:this_nodehost(),
-    LaunchHere = maps:get(ThisHost, NodesMap, #{}),
-    maps:foreach(fun braidnet_orchestrator:launch/2, LaunchHere).
+    NodesToLaunch = maps:get(ThisHost, NodesMap, #{}),
+    maps:foreach(fun braidnet_orchestrator:launch/2, NodesToLaunch).
 
 list() ->
     braidnet_orchestrator:list().
