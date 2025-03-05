@@ -6,7 +6,8 @@
     get_ca_file/0,
     delete_braidnode_certfiles/1,
     new_braidnode_cert/1,
-    get_stritzinger_ca_file/0
+    get_stritzinger_ca_file/0,
+    cert_dir_path/1
 ]).
 
 get_braidnode_cert_file(CID) ->
