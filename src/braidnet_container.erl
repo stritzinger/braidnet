@@ -22,8 +22,7 @@ start_link(Name, CID, Opts) ->
 
 init([Name, CID, #{<<"image">> := DockerImage} = Opts]) ->
     Envs = maps:get(<<"envs">>, Opts, []),
-    Docker = os:find_executable("docker"),
-    SignCheck = check_image_signature(Docker, DockerImage),
+    SignCheck = check_image_signature(DockerImage),
     PortReservation = braidnet_epmd_server:reserve_port(self()),
     case {SignCheck, PortReservation} of
         {ok, {ok, N}} ->
@@ -68,16 +67,17 @@ terminate(_Reason, #state{cid = CID}) ->
 
 % INTERNAL ---------------------------------------------------------------------
 
-check_image_signature(Docker, DockerImage) ->
+check_image_signature(DockerImage) ->
     case application:get_env(braidnet, docker_trust) of
         {ok, false} ->
             ?LOG_WARNING("Docker content trust has been disabled!"),
             ok;
         {ok, true} ->
-            do_check_image_signature(Docker, DockerImage)
+            do_check_image_signature(DockerImage)
     end.
 
-do_check_image_signature(Docker, DockerImage) ->
+do_check_image_signature(DockerImage) ->
+    Docker = os:find_executable("docker"),
     PortSettings = [
         {env,[docker_content_trust_env()]},
         {args, [
