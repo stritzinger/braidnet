@@ -74,7 +74,7 @@ instances() ->
         % key <<"connections">>:
         Connections :: binary() := [binary()],
         % key <<"envs">>:
-        Envs        :: binary() => [{Key :: binary(), Value :: binary()}]
+        Envs        :: binary() => [] % list of lists of 2 elements
     }.
 launch_configuration(NodesMap) ->
     ThisHost = braidnet_cluster:this_nodehost(),

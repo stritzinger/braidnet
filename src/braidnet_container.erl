@@ -138,7 +138,7 @@ docker_run(Name, CID, DockerImage, PortNumber, Envs) ->
     erlang:open_port({spawn_executable, Docker}, PortSettings).
 
 parse_user_envs(Envs) ->
-    lists:foldl(fun({K, V}, Acc) ->
+    lists:foldl(fun([K, V], Acc) ->
         case prohibited_user_env_key(K) of
             true ->
                 error("Prohibited user env key: ~p", [K]);
