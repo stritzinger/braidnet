@@ -102,17 +102,23 @@ docker_content_trust_env() ->
 docker_run(Docker, Name, CID, DockerImage, PortNumber) ->
     NodeHost = braidnet_cluster:this_nodehost(),
     StringCID = binary_to_list(CID),
-    BraidCA = braidnet_cert:get_ca_file(),
-    StritzingerGrispCA = braidnet_cert:get_stritzinger_ca_file(),
-    BriadCert = braidnet_cert:new_braidnode_cert(StringCID),
+    BraidCAFile = braidnet_cert:get_ca_file(),
+    StritzingerGrispCAFile = braidnet_cert:get_stritzinger_ca_file(),
+    BriadCertFile = braidnet_cert:new_braidnode_cert(StringCID),
+
+    {ok, BraidCA} = file:read_file(BraidCAFile),
+    {ok, StritzingerGrispCA} = file:read_file(StritzingerGrispCAFile),
+    MergedCAs = <<BraidCA/binary, "\n", StritzingerGrispCA/binary>>,
+    MergedCAsFile = filename:join([braidnet_cert:cert_dir_path(CID), "CA_certs.pem"]),
+    ok = file:write_file(MergedCAsFile, MergedCAs),
+
     PortSettings = [
         {env,[docker_content_trust_env()]},
         {args, [
             "run",
             "--rm",
-            "-v", BraidCA ++ ":/mnt/certs/braidcert.CA.pem",
-            "-v", StritzingerGrispCA ++ ":/mnt/certs/stritzinger_grisp_CA.pem",
-            "-v", BriadCert ++ ":/mnt/certs/braidnode.pem",
+            "-v", binary_to_list(MergedCAsFile) ++ ":/mnt/certs/CA_certs.pem",
+            "-v", BriadCertFile ++ ":/mnt/certs/braidnode.pem",
             "--env", "CID=" ++ StringCID,
             "--env", "NODE_NAME=" ++ binary_to_list(Name),
             "--env", "NODE_HOST=" ++ binary_to_list(NodeHost),
