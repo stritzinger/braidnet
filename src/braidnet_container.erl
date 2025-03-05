@@ -19,14 +19,16 @@ start_link(Name, CID, Opts) ->
 
 % gen_server callbacks ---------------------------------------------------------
 
-init([Name, CID, #{<<"image">> := DockerImage}]) ->
+init([Name, CID, #{<<"image">> := DockerImage} = Opts]) ->
+    Envs = maps:get(<<"envs">>, Opts, []),
     Docker = os:find_executable("docker"),
     SignCheck = check_image_signature(Docker, DockerImage),
     PortReservation = braidnet_epmd_server:reserve_port(self()),
     case {SignCheck, PortReservation} of
         {ok, {ok, N}} ->
-            {ok, #state{cid = CID,
-                        port = docker_run(Docker, Name, CID, DockerImage, N)}};
+            DockerPort = docker_run(Name, CID, DockerImage, N, Envs),
+            State = #state{cid = CID, port = DockerPort},
+            {ok, State};
         {{error, E}, _} ->
             ?LOG_DEBUG("Rejecting unsigned image: ~p for: ~p",[DockerImage, E]),
             braidnet_orchestrator:log(CID, "brainet: docker image has no trust data"),
@@ -99,7 +101,8 @@ docker_content_trust_env() ->
         {ok, true} -> {"DOCKER_CONTENT_TRUST", "1"}
     end.
 
-docker_run(Docker, Name, CID, DockerImage, PortNumber) ->
+docker_run(Name, CID, DockerImage, PortNumber, Envs) ->
+    Docker = os:find_executable("docker"),
     NodeHost = braidnet_cluster:this_nodehost(),
     StringCID = binary_to_list(CID),
     BraidCAFile = braidnet_cert:get_ca_file(),
@@ -112,26 +115,41 @@ docker_run(Docker, Name, CID, DockerImage, PortNumber) ->
     MergedCAsFile = filename:join([braidnet_cert:cert_dir_path(CID), "CA_certs.pem"]),
     ok = file:write_file(MergedCAsFile, MergedCAs),
 
+    Args = [
+        "run",
+        "--rm",
+        "-v", binary_to_list(MergedCAsFile) ++ ":/mnt/certs/CA_certs.pem",
+        "-v", BriadCertFile ++ ":/mnt/certs/braidnode.pem",
+        "--env", "CID=" ++ StringCID,
+        "--env", "NODE_NAME=" ++ binary_to_list(Name),
+        "--env", "NODE_HOST=" ++ binary_to_list(NodeHost),
+        "--env", "BRD_EPMD_PORT=" ++ integer_to_list(PortNumber),
+        "--hostname", binary_to_list(NodeHost),
+        "--network", "host",
+        "--pull", "always" % Just for development, should be user configured
+    ] ++ parse_user_envs(Envs) ++ [binary_to_list(DockerImage)],
+
     PortSettings = [
-        {env,[docker_content_trust_env()]},
-        {args, [
-            "run",
-            "--rm",
-            "-v", binary_to_list(MergedCAsFile) ++ ":/mnt/certs/CA_certs.pem",
-            "-v", BriadCertFile ++ ":/mnt/certs/braidnode.pem",
-            "--env", "CID=" ++ StringCID,
-            "--env", "NODE_NAME=" ++ binary_to_list(Name),
-            "--env", "NODE_HOST=" ++ binary_to_list(NodeHost),
-            "--env", "BRD_EPMD_PORT=" ++ integer_to_list(PortNumber),
-            "--hostname", binary_to_list(NodeHost),
-            "--network", "host",
-            "--pull", "always", % Just for development, should be user configured
-            binary_to_list(DockerImage)
-        ]},
+        {env, [docker_content_trust_env()]},
+        {args, Args},
         exit_status,
         stderr_to_stdout
     ],
     erlang:open_port({spawn_executable, Docker}, PortSettings).
+
+parse_user_envs(Envs) ->
+    lists:foldl(fun({K, V}, Acc) ->
+        case prohibited_user_env_key(K) of
+            true ->
+                error("Prohibited user env key: ~p", [K]);
+            false ->
+                ["--env", binary_to_list(K) ++ "=" ++ binary_to_list(V) | Acc]
+        end
+    end, [], Envs).
+
+prohibited_user_env_key(Key) ->
+    ProhibitedKeys = ["CID", "NODE_NAME", "NODE_HOST", "BRD_EPMD_PORT"],
+    lists:member(binary_to_list(Key), ProhibitedKeys).
 
 evaluate_exit_code(0) -> normal;
 evaluate_exit_code(125) -> docker_run_failure;
