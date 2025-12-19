@@ -66,7 +66,7 @@ RUN --mount=target=. \
 
 #--- Runner --------------------------------------------------------------------
 
-FROM docker:24.0-dind as runner
+FROM docker:29.0-dind as runner
 
 WORKDIR /opt/braidnet/
 
@@ -74,7 +74,15 @@ WORKDIR /opt/braidnet/
 ENV RELX_OUT_FILE_PATH=/tmp \
     # braidnet specific env variables to act as defaults
     LOGGER_LEVEL=debug \
-    SCHEDULERS=1
+    SCHEDULERS=1 \
+    # Configure Docker-in-Docker to use vfs storage driver instead of overlay2
+    # overlay2 is not supported in Fly.io's filesystem environment
+    DOCKER_STORAGE_DRIVER=vfs
+
+# Configure Docker daemon to use vfs storage driver instead of overlay2
+# overlay2 is not supported in Fly.io's filesystem environment
+RUN mkdir -p /etc/docker && \
+    echo '{"storage-driver": "vfs"}' > /etc/docker/daemon.json
 
 # openssl needed by the crypto app
 RUN --mount=type=cache,id=apk,sharing=locked,target=/var/cache/apk \
